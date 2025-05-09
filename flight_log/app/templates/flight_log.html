@@ -1,0 +1,133 @@
+<!-- flight_log.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Flight Log</title>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const inputs = Array.from(document.querySelectorAll("input, select"));
+      inputs.forEach((el, i) => {
+        el.addEventListener("change", () => {
+          if (inputs[i + 1]) {
+            inputs[i + 1].scrollIntoView({ behavior: "smooth", block: "center" });
+            inputs[i + 1].focus();
+          }
+        });
+      });
+    });
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-white min-h-screen py-10 px-4">
+  <div class="max-w-xl mx-auto bg-white shadow-2xl rounded-2xl p-6 space-y-6">
+    <h1 class="text-2xl font-bold text-center text-blue-800">Flight Log</h1>
+
+    <!-- Full Form -->
+    <form method="POST" class="space-y-6" x-data="{ openNorm: null, grades: {}, grades2: {} }">
+      {% csrf_token %}
+
+      <!-- Flight fields -->
+      <div class="space-y-4">
+
+        <!-- Select Plane -->
+        <div>
+          <label for="plane_id" class="block text-sm font-medium text-gray-700">Select Plane</label>
+          <select name="plane_id" id="plane_id"
+                  class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  required>
+            <option value="" disabled selected>Select a plane</option>
+            {% for plane in planes %}
+              <option value="{{ plane.id }}">{{ plane.registration }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Departure Airfield -->
+        <div>
+          <label for="departure_airfield" class="block text-sm font-medium text-gray-700">Departure Airfield</label>
+          <input type="text" name="departure_airfield" id="departure_airfield"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                 required>
+        </div>
+
+        <!-- Arrival Airfield -->
+        <div>
+          <label for="arrival_airfield" class="block text-sm font-medium text-gray-700">Arrival Airfield</label>
+          <input type="text" name="arrival_airfield" id="arrival_airfield"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                 required>
+        </div>
+
+        <!-- Off Blocks -->
+        <div>
+          <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks</label>
+          <input type="time" name="off_blocks" id="off_blocks"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                 required>
+        </div>
+
+        <!-- On Blocks -->
+        <div>
+          <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks</label>
+          <input type="time" name="on_blocks" id="on_blocks"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                 required>
+        </div>
+
+        <!-- Landings -->
+        <div>
+          <label for="landings" class="block text-sm font-medium text-gray-700">Number of Landings</label>
+          <input type="number" name="landings" id="landings" min="0"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                 required>
+        </div>
+      </div>
+
+      <!-- Norms and exercises with grading -->
+      <div class="space-y-4">
+        {% for norm in norms %}
+          <div class="rounded-xl bg-gray-50 shadow border border-blue-100" x-data="{ open: false, grades: {} }">
+            <button type="button"
+                    class="w-full text-left px-5 py-4 font-semibold text-blue-800"
+                    @click="open = !open">
+              {{ norm.title }}
+            </button>
+            <div x-show="open" x-transition class="px-5 pb-5 space-y-4 text-sm">
+              {% for exercise in norm.exercises.all %}
+                <div>
+                  <div class="font-medium text-gray-700">{{ exercise.text }}</div>
+                  <div class="mt-1 flex gap-2">
+                    <template x-for="score in [1, 2, 3]" :key="score">
+                      <button type="button"
+                              class="px-3 py-1 rounded-full border border-gray-300 text-sm font-medium"
+                              :class="{
+                                'bg-blue-600 text-white': grades[{{ forloop.counter0 }}] === score,
+                                'hover:bg-blue-100': grades[{{ forloop.counter0 }}] !== score
+                              }"
+                              @click="grades[{{ forloop.counter0 }}] = score"
+                              x-text="score">
+                      </button>
+                    </template>
+                    <input type="hidden" name="grades[{{ exercise.id }}]" :value="grades[{{ forloop.counter0 }}] || ''">
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Submit Button (now at bottom) -->
+      <div>
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl transition">
+          Save Flight
+        </button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
