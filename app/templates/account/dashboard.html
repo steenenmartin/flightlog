@@ -1,0 +1,40 @@
+<!-- dashboard.html -->
+{% extends 'base_generic.html' %}
+
+{% block content %}
+  <div class="max-w-lg mx-auto mt-10 bg-white shadow-lg rounded-lg p-6">
+    <h1 class="text-2xl font-bold text-center text-blue-800 mb-6">
+      Welcome {{ user.full_name }}
+    </h1>
+
+    <div class="space-y-4">
+      <!-- Button for Logging Flight (only for Instructors) -->
+      {% for group in user.groups.all %}
+        {% if group.name == "Instructor" %}
+          <a href="{% url 'log_flight_lesson' %}" class="block text-center bg-green-600 text-white py-3 rounded-xl hover:bg-blue-700 transition">
+            Log Lesson
+          </a>
+          <a href="{% url 'log_flight_pft' %}" class="block text-center bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition">
+            Log PFT
+          </a>
+        {% endif %}
+        {% if group.name == "Examiner" %}
+          <a href="{% url 'log_flight_skilltest' %}" class="block text-center bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition">
+            Log Skill Test
+          </a>
+        {% endif %}
+        {% if group.name == "Student" %}
+          <a href="{% url 'logbook' %}" class="block text-center bg-blue-600 text-white py-3 rounded-xl hover:bg-green-700 transition">
+            Logbook
+          </a>
+        {% endif %}
+      {% endfor %}
+      <a href="{% url 'lesson_progress' %}" class="block text-center bg-blue-600 text-white py-3 rounded-xl hover:bg-green-700 transition">
+        Lesson Progress
+      </a>
+      <a href="{% url 'grant_access' %}" class="block text-center bg-blue-600 text-white py-3 rounded-xl hover:bg-green-700 transition">
+        Grant Access to Instructor
+      </a>
+    </div>
+  </div>
+{% endblock %}

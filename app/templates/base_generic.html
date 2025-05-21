@@ -1,0 +1,83 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{% block title %}DULFU Flyvelektion-log{% endblock %}</title>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased flex flex-col min-h-screen">
+
+  <!-- Navbar -->
+  <header class="bg-white shadow relative z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo -->
+        <a href="{% url 'home' %}" class="text-2xl font-bold text-blue-700">✈️ DULFU LOG</a>
+
+        <!-- Desktop Nav -->
+        <nav class="hidden md:flex space-x-6 items-center">
+          <a href="{% url 'home' %}" class="hover:text-blue-600">Home</a>
+          {% if user.is_authenticated %}
+            {% if user.is_instructor %}
+              <a href="/logflight/lesson/" class="text-gray-700 hover:text-blue-600 transition">Log Lesson</a>
+            {% endif %}
+            <a href="/account/" class="text-gray-700 hover:text-blue-600 transition">Account</a>
+            <a href="{% url 'logout' %}" class="text-gray-700 hover:text-red-600 transition">Log out</a>
+          {% else %}
+            <a href="{% url 'login' %}" class="text-gray-700 hover:text-blue-600 transition">Log in</a>
+          {% endif %}
+        </nav>
+
+        <!-- Mobile Nav Button -->
+        <div class="md:hidden" x-data="{ open: false }">
+          <button @click="open = !open" class="p-2 rounded-md focus:outline-none">
+            <svg x-show="!open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+            <svg x-show="open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+
+          <!-- Mobile Nav -->
+          <div x-show="open" @click.away="open = false"
+               class="absolute top-16 inset-x-0 bg-white shadow-md py-4 flex flex-col space-y-2 z-50">
+            <a href="{% url 'home' %}" class="px-4 py-2 hover:bg-gray-100">Home</a>
+            {% if user.is_authenticated %}
+              {% if user.is_instructor %}
+                <a href="/logflight/lesson/" class="px-4 py-2 text-gray-700 hover:bg-gray-100">Log Lesson</a>
+              {% endif %}
+              <a href="/account/" class="px-4 py-2 text-gray-700 hover:bg-gray-100">Account</a>
+              <a href="{% url 'logout' %}" class="px-4 py-2 text-red-600 hover:bg-gray-100 transition">Log out</a>
+            {% else %}
+              <a href="{% url 'login' %}" class="px-4 py-2 text-gray-700 hover:bg-gray-100 transition">Log in</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Page content -->
+  <main class="flex-grow pt-16">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t mt-12">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-gray-600 text-sm">
+      &copy; 2025 Cumulunimbus ApS. All rights reserved.
+    </div>
+  </footer>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

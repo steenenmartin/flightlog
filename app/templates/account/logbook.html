@@ -1,0 +1,103 @@
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-10" x-data="{ filter: 'All' }">
+  <header class="mb-10">
+    <h1 class="text-3xl font-bold">Flight Logbook</h1>
+    <p class="text-gray-600">Track and review your flight history and progress.</p>
+  </header>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+    <div class="bg-white shadow rounded-lg p-6 text-center">
+      <h2 class="text-sm text-gray-500 uppercase mb-1">Total Block Time</h2>
+      <div class="text-2xl font-bold">{{ total_hours }}</div>
+    </div>
+    <div class="bg-white shadow rounded-lg p-6 text-center">
+      <h2 class="text-sm text-gray-500 uppercase mb-1">PIC Block Time</h2>
+      <div class="text-2xl font-bold">{{ solo_hours }}</div>
+    </div>
+    <div class="bg-white shadow rounded-lg p-6 text-center">
+      <h2 class="text-sm text-gray-500 uppercase mb-1">Dual Block Time</h2>
+      <div class="text-2xl font-bold">{{ training_hours }}</div>
+    </div>
+  </div>
+
+  <!-- Filter Buttons -->
+  <div class="flex flex-wrap gap-2 mb-6">
+    <button @click="filter = 'All'" :class="filter === 'All' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">All</button>
+    <button @click="filter = 'Flying Lesson'" :class="filter === 'Flying Lesson' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">Flying Lesson</button>
+    <button @click="filter = 'Skill Test'" :class="filter === 'Skill Test' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">Skill Test</button>
+    <button @click="filter = 'PFT'" :class="filter === 'PFT' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">PFT</button>
+  </div>
+
+  <!-- Log Entries -->
+  <div class="space-y-4">
+    {% for log in flight_logs %}
+    <div x-show="filter === 'All' || filter === '{{ log.tag }}'" class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <div>
+          <p class="text-sm font-semibold text-gray-700">{{ log.date }}</p>
+          <p class="text-sm text-gray-500">{{ log.aircraft }} – {{ log.aircraft_type }}</p>
+        </div>
+        <span class="text-xs font-semibold px-2 py-1 rounded-full
+                     {% if log.tag == 'Flying Lesson' %} bg-blue-100 text-blue-800
+                     {% elif log.tag == 'Solo' %} bg-gray-200 text-gray-800
+                     {% elif log.tag == 'Skill Test' %} bg-red-100 text-red-800
+                     {% else %} bg-gray-100 text-gray-800 {% endif %}">
+          {{ log.tag }}
+        </span>
+      </div>
+
+      <div class="p-4 space-y-3 text-sm text-gray-700">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-xs text-gray-500">Departure</p>
+            <p class="font-medium">{{ log.departure_time }} – {{ log.departure_airfield }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Arrival</p>
+            <p class="font-medium">{{ log.arrival_time }} – {{ log.arrival_airfield }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Duration</p>
+            <p class="font-medium">{{ log.duration }} hours</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Instructor</p>
+            <p class="font-medium">{{ log.instructor }}</p>
+          </div>
+        </div>
+
+        {% if log.norms %}
+        <div>
+          <p class="text-xs text-gray-500 mb-1">Trained Norms & Exercises</p>
+          <ul class="space-y-1 pl-4 border-l-2 border-blue-200">
+            {% for norm in log.norms %}
+            <li>
+              <span class="font-medium">{{ norm.title }}</span>
+              <span class="text-gray-600 italic"> – {{ norm.grade }}</span>
+              {% if norm.comment %}
+                <span class="text-gray-600 italic"> – {{ norm.comment }}</span>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if log.notes %}
+        <div>
+          <p class="text-xs text-gray-500">Notes</p>
+          <p class="text-gray-700">{{ log.notes }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+      <p class="text-gray-500">No flights recorded.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

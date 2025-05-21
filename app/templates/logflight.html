@@ -1,0 +1,355 @@
+{% extends "base_generic.html" %}
+{% load static %}
+{% load custom_filters %}
+
+
+{% block title %}Log a Flight{% endblock %}
+
+{% block extra_head %}
+<script>
+  window.normType = "{{ norm_type }}";
+  window.grades = {};
+
+  document.addEventListener("DOMContentLoaded", function () {
+    // 1) Prefill date/time inputs
+    function setNow(id) {
+      const now = new Date().toISOString().slice(0,16);
+      const input = document.getElementById(id);
+      if (input && !input.value) input.value = now;
+    }
+    setNow("off_blocks");
+    setNow("on_blocks");
+
+    // 2) Define updatePills
+    function updatePills(scores) {
+      // Reset all
+      document.querySelectorAll("[data-exercise-id]").forEach(pill => {
+        pill.classList.remove("bg-opacity-50", "bg-green-500", "border-2", "border-red-500");
+      });
+      // Apply new
+      Object.entries(scores).forEach(([exId, { highest_score, last_score }]) => {
+        document.querySelectorAll(`[data-exercise-id="${exId}"]`).forEach(pill => {
+          const val = parseInt(pill.dataset.score, 10);
+          if (highest_score && val <= highest_score) {
+            pill.classList.add("bg-opacity-50", "bg-green-500");
+          }
+          if (last_score != null && last_score < highest_score && val === last_score) {
+            pill.classList.add("border-2", "border-red-500");
+          }
+        });
+      });
+      // Norm wrappers
+      document.querySelectorAll("[data-norm-id]").forEach(wrapper => {
+          const exIds = wrapper.dataset.exerciseIds.split(",").map(s => s.trim());
+          const allThreeAttemptsPerfect = exIds.every(id => {
+            const sc = scores[id];
+            return sc &&
+                   Array.isArray(sc.last_three) &&
+                   sc.last_three.length === 3 &&
+                   sc.last_three.every(g => g === 3);
+          });
+          wrapper.classList.toggle("bg-green-100", allThreeAttemptsPerfect);
+      });
+
+      document.querySelectorAll('[data-exercise-id-title]').forEach(titleEl => {
+        const exId = titleEl.dataset.exerciseIdTitle;
+        const sc   = scores[exId];
+        const perfectThree = sc &&
+          Array.isArray(sc.last_three) &&
+          sc.last_three.length === 3 &&
+          sc.last_three.every(g => g === 3);
+
+        let icon = titleEl.querySelector('.check-icon');
+        if (perfectThree) {
+          if (!icon) {
+            titleEl.insertAdjacentHTML('beforeend', `
+              <svg class="check-icon ml-2 h-5 w-5 text-green-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+              </svg>
+            `);
+          }
+        } else if (icon) {
+          icon.remove();
+        }
+      });
+
+      Object.entries(scores).forEach(([exId, data]) => {
+        const comment = data.latest_comment;
+        const lastScore = data.last_score;
+
+        const commentEl = document.querySelector(`[data-exercise-id-comment="${exId}"]`);
+        if (commentEl) {
+          if (comment && lastScore <= 2) {
+            commentEl.style.display = "block";
+            commentEl.querySelector(".comment-text").textContent = comment;
+          } else {
+            commentEl.style.display = "none";
+            commentEl.querySelector(".comment-text").textContent = "";
+          }
+        }
+      });
+    }
+
+    // 3) Fetch & color based on pilot ID
+    const sel = document.getElementById("pilot_id");
+    function fetchAndColor() {
+      const pid = sel.value;
+      if (!pid) return;
+        fetch(`/get_lesson_scores/${pid}/`)
+          .then(r => r.json())
+          .then(scores => {
+            if (window.normType === "lesson") {
+              updatePills(scores);
+            }
+          })
+          .catch(console.error);
+    }
+
+    // 4) On initial load, if a pilot is already selected, color the pills
+    if (sel && sel.value) {
+      fetchAndColor();
+    }
+
+    // 5) Append grades JSON on submit
+    const postForm = document.querySelector("form.post-form");
+    if (postForm) {
+      postForm.addEventListener("submit", function (e) {
+        const offBlocksInput = document.getElementById("off_blocks");
+        const onBlocksInput = document.getElementById("on_blocks");
+
+        const pilotInput = document.getElementById("pilot_id");
+
+        if (!pilotInput || !pilotInput.value) {
+          e.preventDefault();
+          const errorBox = document.getElementById("form-error");
+          const errorText = document.getElementById("form-error-text");
+          errorText.textContent = "You must select a pilot.";
+          errorBox.classList.remove("hidden");
+          errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+
+        const off = new Date(offBlocksInput.value);
+        const on = new Date(onBlocksInput.value);
+
+        if (off > on) {
+          e.preventDefault();
+          const errorBox = document.getElementById("form-error");
+          const errorText = document.getElementById("form-error-text");
+          errorText.textContent = "On blocks must be after or equal to off blocks.";
+          errorBox.classList.remove("hidden");
+          errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        }
+
+        // Append grades only if validation passed
+        const inp = document.createElement("input");
+        inp.type = "hidden";
+        inp.name = "grades";
+        inp.value = JSON.stringify(grades);
+        this.appendChild(inp);
+      });
+    }
+  });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="w-full bg-white shadow-2xl rounded-2xl p-6 mx-auto max-w-4xl space-y-6">
+  <h1 class="text-2xl font-bold text-center text-blue-800">Flight Log</h1>
+
+  <!-- GET form: select pilot, reload to apply norms -->
+  <form method="get" class="mb-6">
+    <label for="pilot_id" class="block text-sm font-medium text-gray-700">
+      Select pilot
+    </label>
+    <select
+      name="pilot_id"
+      id="pilot_id"
+      class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+      onchange="this.form.submit()"
+    >
+      {# Always disabled, but only selected when no pilot yet #}
+      <option
+        value=""
+        disabled
+        {% if not selected_pilot %}selected{% endif %}>
+        Select Pilot
+      </option>
+
+      {% for pilot in pilots %}
+        <option
+          value="{{ pilot.id }}"
+          {% if selected_pilot and pilot.id == selected_pilot.id %}selected{% endif %}>
+          {{ pilot.full_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <!-- POST form: submit flight -->
+  <form method="POST" class="space-y-6 post-form" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+    {% csrf_token %}
+    {% if selected_pilot %}
+      <input type="hidden" name="pilot_id" value="{{ selected_pilot.id }}">
+    {% endif %}
+
+    <!-- Pilot function -->
+    {% if norm_type == "lesson" %}
+      <div>
+        <label for="pilot_function" class="block text-sm font-medium text-gray-700">Select Pilot Function</label>
+        <select name="pilot_function" id="pilot_function" required
+                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+          <option value="" disabled selected>Select Pilot Function</option>
+          {% for function in functions %}
+            <option value="{{ function }}">{{ function }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% else %}
+      <!-- Hidden input with fixed value 'Dual' -->
+      <input type="hidden" name="pilot_function" value="Dual">
+    {% endif %}
+
+    <!-- Aircraft -->
+    <div>
+      <label for="aircraft_id" class="block text-sm font-medium text-gray-700">Aircraft</label>
+      <select name="aircraft_id" id="aircraft_id" required
+              class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        <option value="" disabled selected>Select an aircraft</option>
+        {% for ac in aircrafts %}
+          <option value="{{ ac.registration }}">{{ ac.registration }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Airfields / Blocks / Landings -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="departure_airfield" class="block text-sm font-medium text-gray-700">Departure Airfield</label>
+        <input type="text" name="departure_airfield" id="departure_airfield" required
+               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="arrival_airfield" class="block text-sm font-medium text-gray-700">Arrival Airfield</label>
+        <input type="text" name="arrival_airfield" id="arrival_airfield" required
+               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks</label>
+        <input type="datetime-local" name="off_blocks" id="off_blocks" required
+               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div>
+        <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks</label>
+        <input type="datetime-local" name="on_blocks" id="on_blocks" required
+               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+      </div>
+      <div class="md:col-span-2">
+        <label for="landings" class="block text-sm font-medium text-gray-700">Number of Landings</label>
+        <input type="number" name="landings" id="landings" min="0" required
+               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+      </div>
+    </div>
+
+    <!-- Norms & Exercises -->
+    <div class="space-y-4">
+      {% for norm in norms %}
+        <div x-data="{ open: false }"
+             class="rounded-xl bg-gray-50 shadow border border-blue-100 p-4"
+             data-norm-id="{{ norm.id }}"
+             data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+          <button type="button"
+                  class="w-full flex justify-between items-center font-semibold text-blue-800 mb-2"
+                  @click="open = !open">
+            <span>{{ norm.title }}</span>
+            <!-- plus icon when closed -->
+            <svg x-show="!open" xmlns="http://www.w3.org/2000/svg"
+                 class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 4v16m8-8H4" />
+            </svg>
+            <!-- x icon when open -->
+            <svg x-show="open" xmlns="http://www.w3.org/2000/svg"
+                 class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <div x-show="open" x-transition class="space-y-4">
+            {% if norm.longdescription %}
+              <div class="text-sm text-gray-700 ">
+                {{ norm.longdescription|safe }}
+              </div>
+            {% endif %}
+            {% for exercise in norm.exercises.all %}
+              <div>
+                <div
+                  class="font-medium text-gray-700 inline-flex items-center"
+                  data-exercise-id-title="{{ exercise.id }}">
+                  <span class="exercise-label">{{ exercise.title }}</span>
+                </div>
+                {% if exercise.longdescription %}
+                  <div class="text-sm text-gray-600 mb-2">
+                    {{ exercise.longdescription|safe }}
+                  </div>
+                {% endif %}
+                <div class="flex gap-2 mb-4">
+                  {% for score in scores %}
+                    <button type="button"
+                            class="px-3 py-1 rounded-full border border-gray-300 text-sm font-medium"
+                            data-exercise-id="{{ exercise.id }}"
+                            data-score="{{ score }}"
+                            onclick="
+                              const current = grades['{{ exercise.id }}'];
+                              const newScore = (current === {{ score }}) ? null : {{ score }};
+                              grades['{{ exercise.id }}'] = newScore;
+                              window.grades['{{ exercise.id }}'] = newScore;
+
+                              const buttons = this.parentElement.querySelectorAll('button');
+                              buttons.forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
+
+                              if (newScore !== null) {
+                                this.classList.add('bg-blue-600', 'text-white');
+                              }
+
+                              const box = this.closest('.flex').nextElementSibling;
+                              if (newScore === 1 || newScore === 2) {
+                                box.style.display = 'block';
+                              } else {
+                                box.style.display = 'none';
+                                const textarea = box.querySelector('textarea');
+                                if (textarea) textarea.value = '';
+                              }
+                            "
+                    >
+                      {{ grade_labels|default:score|get_item:score }}
+                    </button>
+                  {% endfor %}
+                </div>
+                {% if norm_type == "lesson" %}
+                  <div class="comment-box hidden">
+                    <textarea name="comment_{{ exercise.id }}" rows="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Write a comment..."></textarea>
+                  </div>
+                  <div class="latest-comment text-sm text-gray-500 mt-1" data-exercise-id-comment="{{ exercise.id }}" style="display:none;">
+                    <span class="font-medium">Latest comment:</span>
+                    <span class="comment-text"></span>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <button type="submit"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl transition">
+      Save Flight
+    </button>
+  </form>
+    <div id="form-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+    <span class="block sm:inline" id="form-error-text"></span>
+  </div>
+</div>
+{% endblock %}

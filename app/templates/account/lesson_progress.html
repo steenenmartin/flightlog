@@ -1,0 +1,222 @@
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block title %}Lesson Progress{% endblock %}
+
+{% block extra_head %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const select = document.getElementById("pilot_id");
+
+    const initialPilot   = {{ initial_pilot|safe }};
+    const initialScores  = {{ initial_scores|safe }};
+
+    function updatePills(scores) {
+      // reset all pills
+      document.querySelectorAll("[data-exercise-id]").forEach(p => {
+        p.classList.remove("bg-opacity-50","bg-green-500","border-2","border-red-500");
+      });
+      // reset norm wrappers
+      document.querySelectorAll("[data-norm-id]").forEach(w => {
+        w.classList.remove("bg-green-100");
+      });
+
+      // color individual score-pills as before
+      Object.entries(scores).forEach(([exId, {highest_score, last_score}]) => {
+        document.querySelectorAll(`[data-exercise-id="${exId}"]`).forEach(pill => {
+          const val = parseInt(pill.dataset.score, 10);
+          if (highest_score && val <= highest_score) {
+            pill.classList.add("bg-opacity-50","bg-green-500");
+          }
+          if (last_score != null && last_score < highest_score && val === last_score) {
+            pill.classList.add("border-2","border-red-500");
+          }
+        });
+      });
+
+      // new: only color norm if **last_three** all === 3
+      document.querySelectorAll("[data-norm-id]").forEach(wrapper => {
+        const exIds = wrapper.dataset.exerciseIds.split(",").map(s => s.trim());
+        const perfectThree = exIds.every(id => {
+          const sc = scores[id];
+          return sc &&
+                 Array.isArray(sc.last_three) &&
+                 sc.last_three.length === 3 &&
+                 sc.last_three.every(g => g === 3);
+        });
+        wrapper.classList.toggle("bg-green-100", perfectThree);
+      });
+
+      document.querySelectorAll('[data-exercise-id-title]').forEach(titleEl => {
+        const exId = titleEl.dataset.exerciseIdTitle;
+        const sc   = scores[exId];
+        const perfectThree = sc &&
+          Array.isArray(sc.last_three) &&
+          sc.last_three.length === 3 &&
+          sc.last_three.every(g => g === 3);
+
+        let icon = titleEl.querySelector('.check-icon');
+        if (perfectThree) {
+          if (!icon) {
+            titleEl.insertAdjacentHTML('beforeend', `
+              <svg class="check-icon ml-2 h-5 w-5 text-green-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+              </svg>
+            `);
+          }
+        } else if (icon) {
+          icon.remove();
+        }
+      });
+    }
+
+    function updatePilotDetails(data) {
+      document.getElementById("pilot-name").innerText      = data.full_name || '--';
+      document.getElementById("total-block-time").innerText = data.total_block_time || '--';
+      document.getElementById("dual-block-time").innerText  = data.dual_block_time || '--';
+      document.getElementById("pic-block-time").innerText   = data.pic_block_time || '--';
+      document.getElementById("total-landings").innerText   = data.total_landings;
+      document.getElementById("dual-landings").innerText    = data.dual_landings;
+      document.getElementById("pic-landings").innerText     = data.pic_landings;
+    }
+
+    // on dropdown change
+    if (select) {
+      select.addEventListener("change", function(){
+        const pid = this.value;
+        if (!pid) {
+          updatePilotDetails({ full_name:'', total_block_time:'', dual_block_time:'', pic_block_time:'', total_landings:0, dual_landings:0, pic_landings:0 });
+          updatePills({});
+          return;
+        }
+        fetch(`?pilot_id=${pid}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(r => r.json())
+          .then(data => {
+            updatePilotDetails(data.pilot);
+            updatePills(data.scores);
+          });
+      });
+    }
+
+    // initial load
+    updatePilotDetails(initialPilot);
+    updatePills(initialScores);
+    if (select && select.value) select.dispatchEvent(new Event('change'));
+  });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-8">
+  <h2 class="text-2xl font-bold mb-6 text-gray-800">Lesson Progress</h2>
+
+  {% if allowed_pilots %}
+  <form method="get" class="mb-6">
+    <label for="pilot_id" class="block text-sm font-medium text-gray-700 mb-1">
+      Select Pilot:
+    </label>
+    <select name="pilot_id" id="pilot_id"
+            class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200">
+      <option value="" disabled selected>Select Pilot</option>
+      {% for s in allowed_pilots %}
+        <option value="{{ s.id }}"
+          {% if selected_pilot_id == s.id %}selected{% endif %}>
+          {{ s.full_name }} ({{ s.email }})
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+  <hr class="my-6 border-t border-gray-300">
+  {% endif %}
+
+  <div class="bg-white shadow rounded-lg p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+      <span id="pilot-name">{{ initial_pilot.full_name }}</span>
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <!-- Total -->
+      <div>
+        <div class="text-sm text-gray-500">Total block time</div>
+        <div id="total-block-time" class="text-xl font-medium text-gray-800">{{ initial_pilot.total_block_time }}</div>
+        <div class="text-sm text-gray-500 mt-2">Total landings</div>
+        <div id="total-landings" class="text-xl font-medium text-gray-800">{{ initial_pilot.total_landings }}</div>
+      </div>
+      <!-- Dual -->
+      <div>
+        <div class="text-sm text-gray-500">Dual block time</div>
+        <div id="dual-block-time" class="text-xl font-medium text-gray-800">{{ initial_pilot.dual_block_time }}</div>
+        <div class="text-sm text-gray-500 mt-2">Dual landings</div>
+        <div id="dual-landings" class="text-xl font-medium text-gray-800">{{ initial_pilot.dual_landings }}</div>
+      </div>
+      <!-- PIC -->
+      <div>
+        <div class="text-sm text-gray-500">PIC block time</div>
+        <div id="pic-block-time" class="text-xl font-medium text-gray-800">{{ initial_pilot.pic_block_time }}</div>
+        <div class="text-sm text-gray-500 mt-2">PIC landings</div>
+        <div id="pic-landings" class="text-xl font-medium text-gray-800">{{ initial_pilot.pic_landings }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Norms & Exercises -->
+  <div class="space-y-4 mt-6">
+    {% for norm in norms %}
+        <div x-data="{ open: false }"
+             class="relative rounded-xl bg-gray-50 shadow border border-blue-100 p-4 cursor-pointer"
+             @click="open = !open"
+             data-norm-id="{{ norm.id }}"
+             data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+
+        <div class="flex items-center justify-between font-semibold text-blue-800 mb-2">
+          <span>{{ norm.title }}</span>
+          <!-- Icons -->
+          <div class="flex items-center gap-1">
+            <!-- plus icon when closed -->
+            <svg x-show="!open" xmlns="http://www.w3.org/2000/svg"
+                 class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 4v16m8-8H4" />
+            </svg>
+            <!-- x icon when open -->
+            <svg x-show="open" xmlns="http://www.w3.org/2000/svg"
+                 class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+        </div>
+        <div x-show="open" x-transition class="space-y-4">
+          {% if norm.longdescription %}
+            <div class="text-sm text-gray-700 ">
+              {{ norm.longdescription|safe }}
+            </div>
+          {% endif %}
+          {% for exercise in norm.exercises.all %}
+            <div>
+              <div
+                class="font-medium text-gray-700 inline-flex items-center"
+                data-exercise-id-title="{{ exercise.id }}">
+                <span class="exercise-label">{{ exercise.title }}</span>
+              </div>
+              {% if exercise.longdescription %}
+                <div class="text-sm text-gray-600 mb-2">
+                  {{ exercise.longdescription|safe }}
+                </div>
+              {% endif %}
+              <div class="flex gap-2">
+                {% for score in scores %}
+                  <div class="px-3 py-1 rounded-full border border-gray-300 text-sm font-medium select-none"
+                       data-exercise-id="{{ exercise.id }}"
+                       data-score="{{ score }}">
+                    {{ score }}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

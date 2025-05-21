@@ -11,9 +11,10 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+from pathlib import Path
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Quick-start development settings - unsuitable for production
@@ -22,10 +23,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = '0vti^&v2+8v_=y-don9p_yxa+(%rk^z34s4$m-^8&!u8d2s)3-'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = not ('DATABASE_URL' in os.environ or 'HEROKU_POSTGRESQL_BRONZE_URL' in os.environ)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 AUTH_USER_MODEL = "app.CustomUser"
 
@@ -42,6 +42,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -71,6 +72,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'flight_log.wsgi.application'
 
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = 'account_dashboard'
 
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
@@ -78,15 +81,27 @@ WSGI_APPLICATION = 'flight_log.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'flightlogdb',
-        'USER': 'st',
-        'PASSWORD': '1234',
-        'HOST': 'localhost',  # or your DB host
-        'PORT': '5432',        # default PostgreSQL port
+        'NAME': 'de20tars1ddran',
+        'USER': 'u20eg1js1nm7gl',
+        'PASSWORD': 'pb2c89ef00ec42996d29d32ba53724715734d60d1419e89d3b3c110aafa29410c',
+        'HOST': 'cek6h0n4ffe7ur.cluster-czz5s0kz4scl.eu-west-1.rds.amazonaws.com',
+        'PORT': '5432',
     }
 }
 
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_DOMAIN = ".dulfulog.dk" if ('DATABASE_URL' in os.environ or 'HEROKU_POSTGRESQL_BRONZE_URL' in os.environ) else None
+
+CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000", "https://www.dulfulog.dk"]
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
@@ -106,9 +121,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/2.2/topics/i18n/
+DOMAIN = "https://www.dulfulog.dk" if ('DATABASE_URL' in os.environ or 'HEROKU_POSTGRESQL_BRONZE_URL' in os.environ) else "http://127.0.0.1:8000"
 
 LANGUAGE_CODE = 'en-us'
 
@@ -125,3 +138,5 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
