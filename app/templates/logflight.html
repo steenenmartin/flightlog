@@ -10,6 +10,14 @@
   window.normType = "{{ norm_type }}";
   window.grades = {};
 
+  {% if form_grades_json %}
+    try {
+      window.grades = JSON.parse(`{{ form_grades_json|escapejs }}`);
+    } catch (e) {
+      console.error("Invalid grades JSON:", e);
+    }
+  {% endif %}
+
   document.addEventListener("DOMContentLoaded", function () {
     // 1) Prefill date/time inputs
     function setNow(id) {
@@ -114,40 +122,32 @@
     const postForm = document.querySelector("form.post-form");
     if (postForm) {
       postForm.addEventListener("submit", function (e) {
-        const offBlocksInput = document.getElementById("off_blocks");
-        const onBlocksInput = document.getElementById("on_blocks");
-
-        const pilotInput = document.getElementById("pilot_id");
-
-        if (!pilotInput || !pilotInput.value) {
-          e.preventDefault();
-          const errorBox = document.getElementById("form-error");
-          const errorText = document.getElementById("form-error-text");
-          errorText.textContent = "You must select a pilot.";
-          errorBox.classList.remove("hidden");
-          errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
-          return;
-        }
-
-        const off = new Date(offBlocksInput.value);
-        const on = new Date(onBlocksInput.value);
-
-        if (off > on) {
-          e.preventDefault();
-          const errorBox = document.getElementById("form-error");
-          const errorText = document.getElementById("form-error-text");
-          errorText.textContent = "On blocks must be after or equal to off blocks.";
-          errorBox.classList.remove("hidden");
-          errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
-          return;
-        }
-
         // Append grades only if validation passed
         const inp = document.createElement("input");
         inp.type = "hidden";
         inp.name = "grades";
         inp.value = JSON.stringify(grades);
         this.appendChild(inp);
+      });
+    }
+
+    if (Object.keys(window.grades).length > 0) {
+      updatePills(window.grades);
+
+      // Also re-apply pill selection
+      Object.entries(window.grades).forEach(([exerciseId, score]) => {
+        if (score != null) {
+          const btn = document.querySelector(`[data-exercise-id="${exerciseId}"][data-score="${score}"]`);
+          if (btn) {
+            btn.classList.add("bg-blue-600", "text-white");
+
+            // If score is 1 or 2, show comment box
+            if (score === 1 || score === 2) {
+              const box = btn.closest(".flex").nextElementSibling;
+              if (box) box.style.display = 'block';
+            }
+          }
+        }
       });
     }
   });
@@ -158,96 +158,84 @@
 <div class="w-full bg-white shadow-2xl rounded-2xl p-6 mx-auto max-w-4xl space-y-6">
   <h1 class="text-2xl font-bold text-center text-blue-800">Flight Log</h1>
 
-  <!-- GET form: select pilot, reload to apply norms -->
+  {% if form_errors %}
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative space-y-2" role="alert">
+      {% for field, error in form_errors.items %}
+        <p>{{ error }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- GET form: select pilot -->
   <form method="get" class="mb-6">
     <label for="pilot_id" class="block text-sm font-medium text-gray-700">
       Select pilot
     </label>
-    <select
-      name="pilot_id"
-      id="pilot_id"
-      class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-      onchange="this.form.submit()"
-    >
-      {# Always disabled, but only selected when no pilot yet #}
-      <option
-        value=""
-        disabled
-        {% if not selected_pilot %}selected{% endif %}>
+    <select name="pilot_id" id="pilot_id"
+            class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            onchange="this.form.submit()">
+      <option value="" disabled {% if not selected_pilot %}selected{% endif %}>
         Select Pilot
       </option>
-
       {% for pilot in pilots %}
-        <option
-          value="{{ pilot.id }}"
-          {% if selected_pilot and pilot.id == selected_pilot.id %}selected{% endif %}>
+        <option value="{{ pilot.id }}"
+            {% if selected_pilot and pilot.id == selected_pilot.id %}selected{% endif %}>
           {{ pilot.full_name }}
         </option>
       {% endfor %}
     </select>
   </form>
 
-  <!-- POST form: submit flight -->
-  <form method="POST" class="space-y-6 post-form" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+  <!-- POST form -->
+  <form method="POST" class="space-y-6 post-form">
     {% csrf_token %}
     {% if selected_pilot %}
       <input type="hidden" name="pilot_id" value="{{ selected_pilot.id }}">
     {% endif %}
 
-    <!-- Pilot function -->
-    {% if norm_type == "lesson" %}
-      <div>
-        <label for="pilot_function" class="block text-sm font-medium text-gray-700">Select Pilot Function</label>
-        <select name="pilot_function" id="pilot_function" required
-                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-          <option value="" disabled selected>Select Pilot Function</option>
-          {% for function in functions %}
-            <option value="{{ function }}">{{ function }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    {% else %}
-      <!-- Hidden input with fixed value 'Dual' -->
-      <input type="hidden" name="pilot_function" value="Dual">
-    {% endif %}
-
-    <!-- Aircraft -->
     <div>
       <label for="aircraft_id" class="block text-sm font-medium text-gray-700">Aircraft</label>
       <select name="aircraft_id" id="aircraft_id" required
               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-        <option value="" disabled selected>Select an aircraft</option>
+        <option value="" disabled {% if not form_data.aircraft_id %}selected{% endif %}>Select an aircraft</option>
         {% for ac in aircrafts %}
-          <option value="{{ ac.registration }}">{{ ac.registration }}</option>
+          <option value="{{ ac.registration }}"
+                  {% if form_data.aircraft_id == ac.registration %}selected{% endif %}>
+            {{ ac.registration }}
+          </option>
         {% endfor %}
       </select>
     </div>
 
-    <!-- Airfields / Blocks / Landings -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label for="departure_airfield" class="block text-sm font-medium text-gray-700">Departure Airfield</label>
         <input type="text" name="departure_airfield" id="departure_airfield" required
+               value="{{ form_data.departure_airfield|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
         <label for="arrival_airfield" class="block text-sm font-medium text-gray-700">Arrival Airfield</label>
         <input type="text" name="arrival_airfield" id="arrival_airfield" required
+               value="{{ form_data.arrival_airfield|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
         <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks</label>
         <input type="datetime-local" name="off_blocks" id="off_blocks" required
+               value="{{ form_data.off_blocks|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
         <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks</label>
         <input type="datetime-local" name="on_blocks" id="on_blocks" required
+               value="{{ form_data.on_blocks|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div class="md:col-span-2">
         <label for="landings" class="block text-sm font-medium text-gray-700">Number of Landings</label>
         <input type="number" name="landings" id="landings" min="0" required
+               value="{{ form_data.landings|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
     </div>
@@ -318,8 +306,6 @@
                                 box.style.display = 'block';
                               } else {
                                 box.style.display = 'none';
-                                const textarea = box.querySelector('textarea');
-                                if (textarea) textarea.value = '';
                               }
                             "
                     >
@@ -328,9 +314,17 @@
                   {% endfor %}
                 </div>
                 {% if norm_type == "lesson" %}
-                  <div class="comment-box hidden">
-                    <textarea name="comment_{{ exercise.id }}" rows="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Write a comment..."></textarea>
-                  </div>
+                  {% with exercise.id|stringformat:"s" as eid_str %}
+                    {% with "comment_"|add:eid_str as comment_key %}
+                      {% with form_data|get_item:comment_key as comment_val %}
+                        <div class="comment-box" style="{% if not comment_val %}display: none;{% endif %}">
+                          <textarea name="comment_{{ exercise.id }}" rows="1"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="Write a comment...">{{ comment_val|default_if_none:''|escape }}</textarea>
+                        </div>
+                      {% endwith %}
+                    {% endwith %}
+                  {% endwith %}
                   <div class="latest-comment text-sm text-gray-500 mt-1" data-exercise-id-comment="{{ exercise.id }}" style="display:none;">
                     <span class="font-medium">Latest comment:</span>
                     <span class="comment-text"></span>
@@ -348,8 +342,5 @@
       Save Flight
     </button>
   </form>
-    <div id="form-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-    <span class="block sm:inline" id="form-error-text"></span>
-  </div>
 </div>
 {% endblock %}

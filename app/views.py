@@ -1,6 +1,6 @@
 import json
 from collections import defaultdict
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from django import forms
 from django.contrib import messages
@@ -95,23 +95,72 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
         norms = Norm.objects.none()
 
     # 4) Handle POST for saving the flight
+    form_errors = {}
     if request.method == "POST":
         pid = request.POST.get('pilot_id')
         pilot = get_object_or_404(CustomUser, id=pid)
+        pilot_function = "Dual"
+
+        # Parse form fields
+        try:
+            off_blocks = datetime.fromisoformat(request.POST['off_blocks'])
+            on_blocks = datetime.fromisoformat(request.POST['on_blocks'])
+        except ValueError:
+            form_errors["blocks"] = "Invalid datetime format."
+        else:
+            if on_blocks < off_blocks:
+                form_errors["blocks"] = "On blocks must be after or equal to off blocks."
+
+        grades = json.loads(request.POST.get('grades', '{}'))
+
+        if norm_type == "lesson":
+            # Comment requirement for 1 or 2 grades
+            for ex_id_str, grade in grades.items():
+                if grade in (1, 2):
+                    comment = request.POST.get(f"comment_{ex_id_str}", "").strip()
+                    if not comment:
+                        form_errors[f"comment_{ex_id_str}"] = f"Comment required for exercises graded 1 or 2."
+                        break
+
+        if norm_type == "lesson":
+            exercise_ids = [int(eid) for eid in grades.keys()]
+            selected_norms = Norm.objects.filter(exercises__id__in=exercise_ids).values_list("title", flat=True).distinct()
+            g_norms = any(t.startswith("G") for t in selected_norms)
+            v_norms = any(t.startswith("V") for t in selected_norms)
+            if g_norms and v_norms:
+                form_errors["norm_conflict"] = "Cannot log both G and V type norms in the same flight."
+
+            pilot_function = "PIC" if v_norms else "Dual"
+
+        if form_errors:
+            return render(request, "logflight.html", {
+                "aircrafts": aircrafts,
+                "pilots": pilots,
+                "functions": functions,
+                "norms": norms,
+                "scores": grading_choices,
+                "grade_labels": grade_labels,
+                "norm_type": norm_type,
+                "selected_pilot": selected_pilot,
+                "form_errors": form_errors,
+                "form_data": {k: v for k, v in request.POST.items()},
+                "form_grades_json": request.POST.get("grades", "{}"),
+            })
+
+        # Save result
         flight_result = FlightResult.objects.create(
             pilot=pilot,
             instructor=request.user,
-            pilot_function=request.POST['pilot_function'],
+            pilot_function=pilot_function,
             aircraft=Aircraft.objects.get(registration=request.POST['aircraft_id']),
             departure_airfield=request.POST['departure_airfield'],
             arrival_airfield=request.POST['arrival_airfield'],
             off_blocks=request.POST['off_blocks'],
             on_blocks=request.POST['on_blocks'],
             n_landings=request.POST['landings'],
-            norm_type=norm_type  # Save "lesson" or "skilltest"
+            norm_type=norm_type
         )
 
-        grades = json.loads(request.POST.get('grades', '{}'))
         for exercise_id, grade in grades.items():
             ex = Exercise.objects.get(id=exercise_id)
             comment = request.POST.get(f'comment_{exercise_id}', '')
@@ -132,6 +181,8 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
         "grade_labels": grade_labels,
         "norm_type": norm_type,
         "selected_pilot": selected_pilot,
+        "form_data": {},
+        "form_grades_json": "{}",  # Also helpful
     })
 
 
