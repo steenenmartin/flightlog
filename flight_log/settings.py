@@ -125,7 +125,7 @@ DOMAIN = "https://www.dulfulog.dk" if ('DATABASE_URL' in os.environ or 'HEROKU_P
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Copenhagen'
 
 USE_I18N = True
 
