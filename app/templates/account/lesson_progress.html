@@ -16,12 +16,13 @@
       document.querySelectorAll("[data-exercise-id]").forEach(p => {
         p.classList.remove("bg-opacity-50","bg-green-500","border-2","border-red-500");
       });
+
       // reset norm wrappers
       document.querySelectorAll("[data-norm-id]").forEach(w => {
         w.classList.remove("bg-green-100");
       });
 
-      // color individual score-pills as before
+      // color score pills
       Object.entries(scores).forEach(([exId, {highest_score, last_score}]) => {
         document.querySelectorAll(`[data-exercise-id="${exId}"]`).forEach(pill => {
           const val = parseInt(pill.dataset.score, 10);
@@ -34,7 +35,7 @@
         });
       });
 
-      // new: only color norm if **last_three** all === 3
+      // highlight complete norms
       document.querySelectorAll("[data-norm-id]").forEach(wrapper => {
         const exIds = wrapper.dataset.exerciseIds.split(",").map(s => s.trim());
         const perfectThree = exIds.every(id => {
@@ -47,6 +48,7 @@
         wrapper.classList.toggle("bg-green-100", perfectThree);
       });
 
+      // check icons
       document.querySelectorAll('[data-exercise-id-title]').forEach(titleEl => {
         const exId = titleEl.dataset.exerciseIdTitle;
         const sc   = scores[exId];
@@ -68,6 +70,21 @@
           icon.remove();
         }
       });
+
+      // display latest comment
+      Object.entries(scores).forEach(([exId, data]) => {
+        const comment = data.latest_comment;
+        const commentEl = document.querySelector(`[data-exercise-id-comment="${exId}"]`);
+        if (commentEl) {
+          if (comment) {
+            commentEl.style.display = "block";
+            commentEl.querySelector(".comment-text").textContent = comment;
+          } else {
+            commentEl.style.display = "none";
+            commentEl.querySelector(".comment-text").textContent = "";
+          }
+        }
+      });
     }
 
     function updatePilotDetails(data) {
@@ -80,7 +97,6 @@
       document.getElementById("pic-landings").innerText     = data.pic_landings;
     }
 
-    // on dropdown change
     if (select) {
       select.addEventListener("change", function(){
         const pid = this.value;
@@ -169,15 +185,12 @@
 
         <div class="flex items-center justify-between font-semibold text-blue-800 mb-2">
           <span>{{ norm.title }}</span>
-          <!-- Icons -->
           <div class="flex items-center gap-1">
-            <!-- plus icon when closed -->
             <svg x-show="!open" xmlns="http://www.w3.org/2000/svg"
                  class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 4v16m8-8H4" />
             </svg>
-            <!-- x icon when open -->
             <svg x-show="open" xmlns="http://www.w3.org/2000/svg"
                  class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -193,9 +206,7 @@
           {% endif %}
           {% for exercise in norm.exercises.all %}
             <div>
-              <div
-                class="font-medium text-gray-700 inline-flex items-center"
-                data-exercise-id-title="{{ exercise.id }}">
+              <div class="font-medium text-gray-700 inline-flex items-center" data-exercise-id-title="{{ exercise.id }}">
                 <span class="exercise-label">{{ exercise.title }}</span>
               </div>
               {% if exercise.longdescription %}
@@ -203,7 +214,7 @@
                   {{ exercise.longdescription|safe }}
                 </div>
               {% endif %}
-              <div class="flex gap-2">
+              <div class="flex gap-2 mb-2">
                 {% for score in scores %}
                   <div class="px-3 py-1 rounded-full border border-gray-300 text-sm font-medium select-none"
                        data-exercise-id="{{ exercise.id }}"
@@ -211,6 +222,10 @@
                     {{ score }}
                   </div>
                 {% endfor %}
+              </div>
+              <div class="latest-comment text-sm text-gray-500 mb-4" data-exercise-id-comment="{{ exercise.id }}" style="display:none;">
+                <span class="font-medium">Latest comment:</span>
+                <span class="comment-text"></span>
               </div>
             </div>
           {% endfor %}

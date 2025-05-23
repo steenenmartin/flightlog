@@ -153,6 +153,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def is_instructor(self):
         return self.groups.filter(name='Instructor').exists()
 
+    @property
+    def is_examiner(self):
+        return self.groups.filter(name='Examiner').exists()
+
     def clean(self):
         super().clean()
         self.email = self.__class__.objects.normalize_email(self.email)

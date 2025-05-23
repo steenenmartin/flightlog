@@ -10,7 +10,7 @@
     <div class="space-y-4">
       <!-- Button for Logging Flight (only for Instructors) -->
       {% for group in user.groups.all %}
-        {% if group.name in "Instructor,Examiner" %}
+        {% if group.name == "Instructor" %}
           <a href="{% url 'log_flight_lesson' %}" class="block text-center bg-green-600 text-white py-3 rounded-xl hover:bg-blue-700 transition">
             Log Lesson
           </a>

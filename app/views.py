@@ -418,17 +418,30 @@ def lesson_progress(request):
 
         scores = {}
         for ex_id, last_three in last_three_map.items():
+            # Get the highest score ever
             highest = ExerciseResult.objects.filter(
                 flight_result__pilot=pilot,
                 exercise_id=ex_id
             ).aggregate(max_grade=Max('grade'))['max_grade'] or 0
 
-            last_three = list(reversed(last_three))  # make newest first!
+            # Make newest first
+            last_three = list(reversed(last_three))
+
+            # Get the most recent comment
+            latest_comment_qs = ExerciseResult.objects.filter(
+                flight_result__pilot=pilot,
+                exercise_id=ex_id,
+                grade__lte=2,
+                comment__isnull=False
+            ).exclude(comment="").order_by('-flight_result__off_blocks')
+
+            latest_comment = latest_comment_qs.first().comment if latest_comment_qs.exists() else None
 
             scores[ex_id] = {
                 'highest_score': highest,
                 'last_score': last_three[0],
                 'last_three': last_three,
+                'latest_comment': latest_comment,
             }
     else:
         total_bt = dual_bt = pic_bt = timedelta()
