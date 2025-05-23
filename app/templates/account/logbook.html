@@ -27,7 +27,7 @@
   <!-- Filter Buttons -->
   <div class="flex flex-wrap gap-2 mb-6">
     <button @click="filter = 'All'" :class="filter === 'All' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">All</button>
-    <button @click="filter = 'Flying Lesson'" :class="filter === 'Flying Lesson' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">Flying Lesson</button>
+    <button @click="filter = 'Lesson'" :class="filter === 'Lesson' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">Lesson</button>
     <button @click="filter = 'Skill Test'" :class="filter === 'Skill Test' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">Skill Test</button>
     <button @click="filter = 'PFT'" :class="filter === 'PFT' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'" class="px-3 py-1 rounded-full text-sm font-medium">PFT</button>
   </div>
@@ -42,8 +42,7 @@
           <p class="text-sm text-gray-500">{{ log.aircraft }} – {{ log.aircraft_type }}</p>
         </div>
         <span class="text-xs font-semibold px-2 py-1 rounded-full
-                     {% if log.tag == 'Flying Lesson' %} bg-blue-100 text-blue-800
-                     {% elif log.tag == 'Solo' %} bg-gray-200 text-gray-800
+                     {% if log.tag == 'Lesson' %} bg-blue-100 text-blue-800
                      {% elif log.tag == 'Skill Test' %} bg-red-100 text-red-800
                      {% else %} bg-gray-100 text-gray-800 {% endif %}">
           {{ log.tag }}
