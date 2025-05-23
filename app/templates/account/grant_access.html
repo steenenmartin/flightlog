@@ -1,32 +1,64 @@
-{% extends 'base_generic.html' %}
+{% extends "base_generic.html" %}
+{% load static %}
+
+{% block title %}Grant Instructor Access{% endblock %}
 
 {% block content %}
-  <div class="max-w-lg mx-auto mt-10 bg-white shadow-lg rounded-lg p-6">
-    <h2 class="text-xl font-bold mb-4 text-blue-800 text-center">Grant Access to Instructors</h2>
+<div class="max-w-4xl mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold text-gray-800 mb-6">Manage Instructor Access</h1>
 
-   <form method="post" class="space-y-6">
-      {% csrf_token %}
-
-      <!-- Grant Access to Instructor -->
-      <div>
-        <label for="allowed_instructor" class="block text-sm font-medium text-gray-700">
-          Grant Access to an Instructor
-        </label>
-        <select name="allowed_instructor" id="allowed_instructor" required
-                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-          <option value="" disabled selected>Select an instructor</option>
-          {% for instructor in instructors %}
-            <option value="{{ instructor.pk }}">{{ instructor.full_name }} ({{ instructor.email }})</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div>
+  <div class="grid md:grid-cols-2 gap-6">
+    <!-- Grant Access Card -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Grant Access</h2>
+      <form method="post" class="space-y-4">
+        {% csrf_token %}
+        <div>
+          <label for="allowed_instructor" class="block text-sm font-medium text-gray-700 mb-1">
+            Select instructor
+          </label>
+          <select name="allowed_instructor" id="allowed_instructor"
+                  class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            {% for instructor in instructors %}
+              <option value="{{ instructor.id }}">
+                {{ instructor.full_name }} ({{ instructor.email }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
         <button type="submit"
-                class="w-full bg-blue-600 text-white py-2 px-4 rounded-xl hover:bg-blue-700 transition">
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md transition">
           Grant Access
         </button>
-      </div>
-    </form>
+      </form>
+    </div>
+
+    <!-- Revoke Access Card -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Current Access</h2>
+      {% if current_instructors %}
+        <ul class="divide-y divide-gray-200">
+          {% for instructor in current_instructors %}
+            <li class="py-2 flex justify-between items-center">
+              <div>
+                <p class="text-gray-800 font-medium">{{ instructor.full_name }}</p>
+                <p class="text-sm text-gray-500">{{ instructor.email }}</p>
+              </div>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="revoke_instructor" value="{{ instructor.id }}">
+                <button type="submit"
+                        class="text-red-600 hover:text-red-800 font-semibold text-sm">
+                  Revoke
+                </button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-gray-500 text-sm">No instructors currently have access.</p>
+      {% endif %}
+    </div>
   </div>
+</div>
 {% endblock %}

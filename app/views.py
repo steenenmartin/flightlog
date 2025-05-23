@@ -72,16 +72,10 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
     # 1) Aircraft & pilot list
     aircrafts = Aircraft.objects.all()
     if norm_type == "lesson":
-        pilots = CustomUser.objects.filter(
-            models.Q(club=request.user.club) | models.Q(allowed_instructors=request.user),
-            groups__name='Student'
-        ).distinct()
+        pilots = CustomUser.objects.filter(models.Q(allowed_instructors=request.user), groups__name='Student').distinct()
     if norm_type == "skilltest":
         # Step 1: Filter students in club or allowed list
-        candidates = CustomUser.objects.filter(
-            models.Q(club=request.user.club) | models.Q(allowed_instructors=request.user),
-            groups__name='Student'
-        ).distinct()
+        candidates = CustomUser.objects.filter(models.Q(allowed_instructors=request.user), groups__name='Student').distinct()
 
         qualified_pilot_ids = []
 
@@ -128,10 +122,7 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
         # Step 3: Final queryset of qualifying pilots
         pilots = candidates.filter(id__in=qualified_pilot_ids)
     elif norm_type == "pft":
-        pilots = CustomUser.objects.filter(
-            models.Q(club=request.user.club) | models.Q(allowed_instructors=request.user),
-            groups__name='Pilot'
-        ).distinct()
+        pilots = CustomUser.objects.filter(models.Q(allowed_instructors=request.user), groups__name='Pilot').distinct()
 
     # 2) Selected pilot from GET
     pilot_id = request.GET.get('pilot_id')
@@ -320,20 +311,33 @@ class GrantAccessForm(forms.ModelForm):
 @login_required
 def grant_instructor_access(request):
     pilot = request.user
-    # Instructors not in the same club
+
+    # Instructors not in the same club and not already added
     instructors = CustomUser.objects.filter(
         groups__name='Instructor'
-    ).exclude(club=pilot.club)
+    ).exclude(id__in=pilot.allowed_instructors.all())
+
+    # Instructors who currently have access
+    current_instructors = pilot.allowed_instructors.filter(groups__name='Instructor')
 
     if request.method == 'POST':
+        # Grant access
         instructor_id = request.POST.get('allowed_instructor')
         if instructor_id:
             instructor = get_object_or_404(CustomUser, pk=instructor_id)
             pilot.allowed_instructors.add(instructor)
-        return redirect('/account')
+            return redirect('/account')
 
-    return render(request, 'dashboard/grant_access.html', {
+        # Revoke access
+        revoke_id = request.POST.get('revoke_instructor')
+        if revoke_id:
+            instructor = get_object_or_404(CustomUser, pk=revoke_id)
+            pilot.allowed_instructors.remove(instructor)
+            return redirect('/account')
+
+    return render(request, 'account/grant_access.html', {
         'instructors': instructors,
+        'current_instructors': current_instructors,
     })
 
 
@@ -358,20 +362,15 @@ def lesson_progress(request):
     # — select current pilot —
     pilot = None
     allowed_pilots = None
-    if user.is_instructor:
+    if user.is_instructor or user.is_uddannelseschef:
         student_group = Group.objects.get(name="Student")
 
-        club_qs = CustomUser.objects.filter(
-            club=user.club,
-            groups=student_group
-        ).exclude(pk=user.pk)
+        allowed_pilots = CustomUser.objects.filter(groups=student_group)
 
-        granted_qs = CustomUser.objects.filter(
-            allowed_instructors=user,
-            groups=student_group
-        )
+        if not user.is_superuser:
+            allowed_pilots = allowed_pilots.filter(allowed_instructors=user)
 
-        allowed_pilots = (club_qs | granted_qs).distinct()
+        allowed_pilots = allowed_pilots.distinct()
 
         pid = request.GET.get("pilot_id")
         if pid:
