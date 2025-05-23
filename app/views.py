@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import Group
 from django.db import models
-from django.db.models import ExpressionWrapper, DurationField, F, Sum, Max
+from django.db.models import ExpressionWrapper, DurationField, F, Sum, Max, Prefetch
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -71,11 +71,62 @@ def log_flight_pft(request):
 def render_log_flight(request, norm_type, functions, grading_choices, grade_labels):
     # 1) Aircraft & pilot list
     aircrafts = Aircraft.objects.all()
-    if norm_type in ("lesson", "skilltest"):
+    if norm_type == "lesson":
         pilots = CustomUser.objects.filter(
             models.Q(club=request.user.club) | models.Q(allowed_instructors=request.user),
             groups__name='Student'
         ).distinct()
+    if norm_type == "skilltest":
+        # Step 1: Filter students in club or allowed list
+        candidates = CustomUser.objects.filter(
+            models.Q(club=request.user.club) | models.Q(allowed_instructors=request.user),
+            groups__name='Student'
+        ).distinct()
+
+        qualified_pilot_ids = []
+
+        # Step 2: Process each candidate pilot
+        for pilot in candidates:
+            passed_all = True
+
+            # Step 2a: Get only relevant exercises for this pilot's ul_class and 'lesson' norm_type
+            relevant_exercises = Exercise.objects.filter(
+                norm__norm_type='lesson',
+                norm__ul_class=pilot.ul_class
+            ).select_related('norm')
+
+            # Group exercises by ID for lookup
+            required_exercise_ids = {exercise.id for exercise in relevant_exercises}
+
+            # Step 2b: Get pilot's recent exercise results (prefetched by flight)
+            flight_results = (
+                FlightResult.objects.filter(pilot=pilot)
+                .prefetch_related(
+                    Prefetch('exerciseresult_set', queryset=ExerciseResult.objects.select_related('exercise'))
+                )
+                .order_by('-off_blocks')  # latest first
+            )
+
+            # Map of {exercise_id: list of most recent grades}
+            grades_by_exercise = defaultdict(list)
+
+            for flight in flight_results:
+                for result in flight.exerciseresult_set.all():
+                    if result.exercise_id in required_exercise_ids:
+                        grades_by_exercise[result.exercise_id].append(result.grade)
+
+            # Step 2c: Check each relevant exercise for 3 most recent grades == 3
+            for eid in required_exercise_ids:
+                last_grades = grades_by_exercise.get(eid, [])
+                if len(last_grades) < 3 or any(g != 3 for g in last_grades[:3]):
+                    passed_all = False
+                    break
+
+            if passed_all:
+                qualified_pilot_ids.append(pilot.id)
+
+        # Step 3: Final queryset of qualifying pilots
+        pilots = candidates.filter(id__in=qualified_pilot_ids)
     elif norm_type == "pft":
         pilots = CustomUser.objects.filter(
             models.Q(club=request.user.club) | models.Q(allowed_instructors=request.user),

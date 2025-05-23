@@ -3,7 +3,6 @@ from django.urls import path
 
 from .views import *
 
-#.\pg_ctl.exe  -D "C:\Users\xmeh\AppData\Roaming\pgsql\mydata" start
 
 urlpatterns = [
     path('', home, name="home"),
