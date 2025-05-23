@@ -9,7 +9,7 @@
     const select = document.getElementById("pilot_id");
 
     const initialPilot   = {{ initial_pilot|safe }};
-    const initialScores  = {{ initial_scores|safe }};
+    const initialScores = JSON.parse(`{{ initial_scores|escapejs }}`);
 
     function updatePills(scores) {
       // reset all pills
@@ -178,7 +178,7 @@
   <div class="space-y-4 mt-6">
     {% for norm in norms %}
         <div x-data="{ open: false }"
-             class="relative rounded-xl bg-gray-50 shadow border border-blue-100 p-4 cursor-pointer"
+             class="relative rounded-xl bg-white shadow border border-blue-100 p-4 cursor-pointer"
              @click="open = !open"
              data-norm-id="{{ norm.id }}"
              data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">

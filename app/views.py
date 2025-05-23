@@ -13,6 +13,7 @@ from django.db.models import ExpressionWrapper, DurationField, F, Sum, Max, Pref
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.utils.safestring import mark_safe
 from django.utils.timezone import localtime
 
 from .models import Norm, Aircraft, Exercise, ExerciseResult, FlightResult, CustomUser
@@ -477,9 +478,9 @@ def lesson_progress(request):
         'allowed_pilots':    allowed_pilots,
         'selected_pilot_id': pilot.pk if pilot and user.is_instructor else None,
         'initial_pilot':     pilot_data,
-        'initial_scores':      scores,
-        'norms':               norms,
-        'scores':              [1, 2, 3],
+        'initial_scores':    mark_safe(json.dumps(scores)),
+        'norms':             norms,
+        'scores':            [1, 2, 3],
     })
 
 
