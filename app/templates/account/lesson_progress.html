@@ -30,7 +30,8 @@
             pill.classList.add("bg-opacity-50","bg-green-500");
           }
           if (last_score != null && last_score < highest_score && val === last_score) {
-            pill.classList.add("border-2","border-red-500");
+            pill.classList.add("border-2", "border-red-600");
+            pill.classList.add("ring-2", "ring-red-600", "ring-offset-0");
           }
         });
       });
@@ -38,6 +39,8 @@
       // highlight complete norms
       document.querySelectorAll("[data-norm-id]").forEach(wrapper => {
         const exIds = wrapper.dataset.exerciseIds.split(",").map(s => s.trim());
+
+        const hasFlownAny = exIds.some(id => scores[id]);
         const perfectThree = exIds.every(id => {
           const sc = scores[id];
           return sc &&
@@ -45,7 +48,13 @@
                  sc.last_three.length === 3 &&
                  sc.last_three.every(g => g === 3);
         });
+
+        // full green fill if perfect
         wrapper.classList.toggle("bg-green-100", perfectThree);
+
+        // green ring if any exercise flown
+        wrapper.classList.toggle("ring-2", hasFlownAny);
+        wrapper.classList.toggle("ring-green-400", hasFlownAny);
       });
 
       // check icons
@@ -216,7 +225,7 @@
               {% endif %}
               <div class="flex gap-2 mb-2">
                 {% for score in scores %}
-                  <div class="px-3 py-1 rounded-full border border-gray-300 text-sm font-medium select-none"
+                  <div class="px-4 py-1 border rounded-full border-gray-300 text-sm font-medium transition duration-150 ease-in-out"
                        data-exercise-id="{{ exercise.id }}"
                        data-score="{{ score }}">
                     {{ score }}

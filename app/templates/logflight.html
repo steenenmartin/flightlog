@@ -42,21 +42,31 @@
             pill.classList.add("bg-opacity-50", "bg-green-500");
           }
           if (last_score != null && last_score < highest_score && val === last_score) {
-            pill.classList.add("border-2", "border-red-500");
+            pill.classList.add("border-2", "border-red-600");
+            pill.classList.add("ring-2", "ring-red-600", "ring-offset-0");
           }
         });
       });
+
       // Norm wrappers
       document.querySelectorAll("[data-norm-id]").forEach(wrapper => {
-          const exIds = wrapper.dataset.exerciseIds.split(",").map(s => s.trim());
-          const allThreeAttemptsPerfect = exIds.every(id => {
-            const sc = scores[id];
-            return sc &&
-                   Array.isArray(sc.last_three) &&
-                   sc.last_three.length === 3 &&
-                   sc.last_three.every(g => g === 3);
-          });
-          wrapper.classList.toggle("bg-green-100", allThreeAttemptsPerfect);
+        const exIds = wrapper.dataset.exerciseIds.split(",").map(s => s.trim());
+
+        const hasFlownAny = exIds.some(id => scores[id]);
+        const allThreePerfect = exIds.every(id => {
+          const sc = scores[id];
+          return sc &&
+                 Array.isArray(sc.last_three) &&
+                 sc.last_three.length === 3 &&
+                 sc.last_three.every(g => g === 3);
+        });
+
+        // Full green background if all exercises perfect
+        wrapper.classList.toggle("bg-green-100", allThreePerfect);
+
+        // Green ring if at least one exercise flown
+        wrapper.classList.toggle("ring-2", hasFlownAny);
+        wrapper.classList.toggle("ring-green-400", hasFlownAny);
       });
 
       document.querySelectorAll('[data-exercise-id-title]').forEach(titleEl => {
@@ -243,7 +253,7 @@
     <!-- Norms & Exercises -->
     <div class="space-y-4">
       {% for norm in norms %}
-        <div x-data="{ open: false }"
+        <div x-data="{ open: false }" x-init="open = false"
              class="rounded-xl bg-gray-50 shadow border border-blue-100 p-4"
              data-norm-id="{{ norm.id }}"
              data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">
@@ -285,7 +295,7 @@
                 <div class="flex gap-2 mb-4">
                   {% for score in scores %}
                     <button type="button"
-                            class="px-3 py-1 rounded-full border border-gray-300 text-sm font-medium"
+                            class="px-4 py-1 border rounded-full border-gray-300 text-sm font-medium transition duration-150 ease-in-out"
                             data-exercise-id="{{ exercise.id }}"
                             data-score="{{ score }}"
                             onclick="
