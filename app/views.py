@@ -493,7 +493,7 @@ def skilltest_form(request):
 def logbook_view(request):
     flights = FlightResult.objects.filter(pilot=request.user).select_related('instructor', 'aircraft').order_by('-off_blocks')
     logs = []
-    total_time = training_time = solo_time = 0
+    total_time = dual_time = pic_time = 0
 
     for flight in flights:
         duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
@@ -501,16 +501,18 @@ def logbook_view(request):
         total_time += duration_hours
 
         # Time classification
-        if flight.pilot_function == "PIC":
-            tag = "Solo"
-            solo_time += duration_hours
+        if flight.norm_type == "lesson":
+            tag = "Lesson"
+            if flight.pilot_function == "PIC":
+                pic_time += duration_hours
+            else:
+                dual_time += duration_hours
         elif flight.pilot_function == "Skill Test":
             tag = "Skill Test"
+            dual_time += duration_hours
         elif flight.pilot_function == "PFT":
             tag = "PFT"
-        else:
-            tag = "Flying Lesson"
-            training_time += duration_hours
+            dual_time += duration_hours
 
         # Norms & Exercises with comments
         exercises = ExerciseResult.objects.filter(flight_result=flight).select_related('exercise__norm')
@@ -540,8 +542,8 @@ def logbook_view(request):
 
     context = {
         "total_hours": f"{int(total_time):02}:{int((total_time * 60) % 60):02}",
-        "solo_hours": f"{int(solo_time):02}:{int((solo_time * 60) % 60):02}",
-        "training_hours": f"{int(training_time):02}:{int((training_time * 60) % 60):02}",
+        "pic_hours": f"{int(pic_time):02}:{int((pic_time * 60) % 60):02}",
+        "dual_hours": f"{int(dual_time):02}:{int((dual_time * 60) % 60):02}",
         "flight_logs": logs,
     }
     return render(request, "account/logbook.html", context)
