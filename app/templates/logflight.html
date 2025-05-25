@@ -203,6 +203,23 @@
       <input type="hidden" name="pilot_id" value="{{ selected_pilot.id }}">
     {% endif %}
 
+    <!-- Pilot function -->
+    {% if norm_type == "lesson" %}
+      <div>
+        <label for="pilot_function" class="block text-sm font-medium text-gray-700">Select Pilot Function</label>
+        <select name="pilot_function" id="pilot_function" required
+                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+          <option value="" disabled selected>Select Pilot Function</option>
+          {% for function in functions %}
+            <option value="{{ function }}">{{ function }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% else %}
+      <!-- Hidden input with fixed value 'Dual' -->
+      <input type="hidden" name="pilot_function" value="Dual">
+    {% endif %}
+
     <div>
       <label for="aircraft_id" class="block text-sm font-medium text-gray-700">Aircraft</label>
       <select name="aircraft_id" id="aircraft_id" required
@@ -231,13 +248,13 @@
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
-        <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks</label>
+        <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks (UTC)</label>
         <input type="datetime-local" name="off_blocks" id="off_blocks" required
                value="{{ form_data.off_blocks|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
       </div>
       <div>
-        <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks</label>
+        <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks (UTC)</label>
         <input type="datetime-local" name="on_blocks" id="on_blocks" required
                value="{{ form_data.on_blocks|default:'' }}"
                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">

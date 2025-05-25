@@ -142,7 +142,7 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
     if request.method == "POST":
         pid = request.POST.get('pilot_id')
         pilot = get_object_or_404(CustomUser, id=pid)
-        pilot_function = "Dual"
+        pilot_function = request.POST['pilot_function'] if norm_type == "lesson" else "Dual"
 
         # Parse form fields
         try:
@@ -172,8 +172,6 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
             v_norms = any(t.startswith("V") for t in selected_norms)
             if g_norms and v_norms:
                 form_errors["norm_conflict"] = "Cannot log both G and V type norms in the same flight."
-
-            pilot_function = "PIC" if v_norms else "Dual"
 
         if form_errors:
             return render(request, "logflight.html", {
