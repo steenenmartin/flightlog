@@ -19,6 +19,13 @@ from django.utils.timezone import localtime, now
 from .models import Norm, Aircraft, Exercise, ExerciseResult, FlightResult, CustomUser
 
 
+GRADE_LABELS = {
+    "lesson": {1: "1", 2: "2", 3: "3"},
+    "skilltest": {1: "Not Approved", 2: "Approved"},
+    "pft": {1: "Not Approved", 2: "Approved"},
+}
+
+
 @login_required
 def account_dashboard(request):
     # You can pass additional context if needed
@@ -46,7 +53,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             norm_type="lesson",
             functions=["Dual", "PIC"],
             grading_choices=[1, 2, 3],
-            grade_labels={1: "1", 2: "2", 3: "3"},
+            grade_labels=GRADE_LABELS["lesson"],
             flight_id=flight_id
         )
     elif flight_type == "skilltest":
@@ -57,7 +64,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             norm_type="skilltest",
             functions=["Dual"],
             grading_choices=[1, 2],
-            grade_labels={1: "Not Approved", 2: "Approved"},
+            grade_labels=GRADE_LABELS["skilltest"],
             flight_id=flight_id
         )
     elif flight_type == "pft":
@@ -68,7 +75,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             norm_type="pft",
             functions=["Dual"],
             grading_choices=[1, 2],
-            grade_labels={1: "Not Approved", 2: "Approved"},
+            grade_labels=GRADE_LABELS["pft"],
             flight_id=flight_id
         )
     else:
@@ -486,8 +493,7 @@ def logbook_view(request):
     pilot = None
     allowed_pilots = None
     if user.is_instructor or user.is_uddannelseschef:
-        student_group = Group.objects.get(name="Student")
-        allowed_pilots = CustomUser.objects.filter(groups=student_group)
+        allowed_pilots = CustomUser.objects.all()
 
         if not user.is_superuser:
             allowed_pilots = allowed_pilots.filter(allowed_instructors=user)
@@ -496,7 +502,7 @@ def logbook_view(request):
 
         pid = request.GET.get("pilot_id")
         if pid:
-            pilot = get_object_or_404(CustomUser, pk=pid, groups=student_group)
+            pilot = get_object_or_404(CustomUser, pk=pid)
     else:
         pilot = user
 
@@ -554,7 +560,7 @@ def logbook_view(request):
             norm_entries = [
                 {
                     "title": f"{e.exercise.norm.title}: {e.exercise.title}",
-                    "grade": e.grade,
+                    "grade": GRADE_LABELS.get(flight.norm_type, {}).get(e.grade, e.grade),
                     "comment": e.comment or ""
                 }
                 for e in exercises
@@ -565,12 +571,13 @@ def logbook_view(request):
                 "aircraft": flight.aircraft.registration,
                 "aircraft_type": flight.aircraft.type,
                 "duration": f"{int(duration_seconds // 3600):02}:{int((duration_seconds % 3600) // 60):02}",
+                "landings": flight.n_landings,
+                "pilot": pilot.full_name,
                 "instructor": flight.instructor.full_name if flight.instructor else "N/A",
                 "departure_time": localtime(flight.off_blocks).strftime("%H:%M"),
                 "departure_airfield": flight.departure_airfield,
                 "arrival_time": localtime(flight.on_blocks).strftime("%H:%M"),
                 "arrival_airfield": flight.arrival_airfield,
-                "notes": f"{flight.n_landings} landings",
                 "tag": tag,
                 "norms": norm_entries,
                 "is_editable": is_editable,

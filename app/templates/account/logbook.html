@@ -68,6 +68,14 @@
       <div class="p-4 space-y-3 text-sm text-gray-700">
         <div class="grid grid-cols-2 gap-4">
           <div>
+            <p class="text-xs text-gray-500">Pilot</p>
+            <p class="font-medium">{{ log.pilot }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Instructor</p>
+            <p class="font-medium">{{ log.instructor }}</p>
+          </div>
+          <div>
             <p class="text-xs text-gray-500">Departure</p>
             <p class="font-medium">{{ log.departure_time }} – {{ log.departure_airfield }}</p>
           </div>
@@ -80,8 +88,8 @@
             <p class="font-medium">{{ log.duration }} hours</p>
           </div>
           <div>
-            <p class="text-xs text-gray-500">Instructor</p>
-            <p class="font-medium">{{ log.instructor }}</p>
+            <p class="text-xs text-gray-500">Landings</p>
+            <p class="font-medium">{{ log.landings }}</p>
           </div>
         </div>
 
@@ -99,13 +107,6 @@
             </li>
             {% endfor %}
           </ul>
-        </div>
-        {% endif %}
-
-        {% if log.notes %}
-        <div>
-          <p class="text-xs text-gray-500">Notes</p>
-          <p class="text-gray-700">{{ log.notes }}</p>
         </div>
         {% endif %}
       </div>
