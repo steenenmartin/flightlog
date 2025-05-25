@@ -193,6 +193,7 @@ class FlightResult(models.Model):
     off_blocks = models.DateTimeField()
     on_blocks = models.DateTimeField()
     n_landings = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class ExerciseResult(models.Model):

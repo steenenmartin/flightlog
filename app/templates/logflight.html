@@ -210,9 +210,9 @@
           <label for="pilot_function" class="block text-sm font-medium text-gray-700">Select Pilot Function</label>
           <select name="pilot_function" id="pilot_function" required
                   class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-            <option value="" disabled selected>Select Pilot Function</option>
+            <option value="" disabled {% if not form_data.pilot_function %}selected{% endif %}>Select Pilot Function</option>
             {% for function in functions %}
-              <option value="{{ function }}">{{ function }}</option>
+              <option value="{{ function }}" {% if form_data.pilot_function == function %}selected{% endif %}>{{ function }}</option>
             {% endfor %}
           </select>
         </div>

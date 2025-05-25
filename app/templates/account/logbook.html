@@ -8,6 +8,20 @@
     <p class="text-gray-600">Track and review your flight history and progress.</p>
   </header>
 
+  {% if allowed_pilots %}
+    <div class="mb-6">
+      <label for="pilot-select" class="block mb-1 font-medium text-sm text-gray-700">Select Pilot</label>
+      <form method="get">
+        <select name="pilot_id" id="pilot-select" onchange="this.form.submit()" class="w-full max-w-xs border-gray-300 rounded-lg shadow-sm focus:ring focus:ring-blue-200">
+          <option value="">Select a pilot</option>
+          {% for pilot in allowed_pilots %}
+            <option value="{{ pilot.id }}" {% if pilot.id == selected_pilot_id %}selected{% endif %}>{{ pilot.full_name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  {% endif %}
+
   <!-- Summary Cards -->
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
     <div class="bg-white shadow rounded-lg p-6 text-center">
@@ -40,7 +54,9 @@
         <div>
           <p class="text-sm font-semibold text-gray-700">{{ log.date }}</p>
           <p class="text-sm text-gray-500">{{ log.aircraft }} – {{ log.aircraft_type }}</p>
-        </div>
+          {% if log.is_editable %}
+            <a href="{% url 'edit_flight' log.norm_type log.id %}" class="text-sm text-blue-600 hover:underline">Edit</a>
+          {% endif %}        </div>
         <span class="text-xs font-semibold px-2 py-1 rounded-full
                      {% if log.tag == 'Lesson' %} bg-blue-100 text-blue-800
                      {% elif log.tag == 'Skill Test' %} bg-red-100 text-red-800

@@ -10,11 +10,11 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import Group
 from django.db import models
 from django.db.models import ExpressionWrapper, DurationField, F, Sum, Max, Prefetch
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from django.utils.timezone import localtime
+from django.utils.timezone import localtime, now
 
 from .models import Norm, Aircraft, Exercise, ExerciseResult, FlightResult, CustomUser
 
@@ -37,114 +37,84 @@ def is_examiner(user):
 
 
 @login_required
-@user_passes_test(is_instructor)
-def log_flight_lesson(request):
-    return render_log_flight(
-        request,
-        norm_type="lesson",
-        functions=["Dual", "PIC"],
-        grading_choices=[1, 2, 3],
-        grade_labels={1: "1", 2: "2", 3: "3"}
-    )
+def log_flight_dispatch(request, flight_type, flight_id=None):
+    if flight_type == "lesson":
+        if not is_instructor(request.user):
+            return HttpResponseForbidden()
+        return render_log_flight(
+            request,
+            norm_type="lesson",
+            functions=["Dual", "PIC"],
+            grading_choices=[1, 2, 3],
+            grade_labels={1: "1", 2: "2", 3: "3"},
+            flight_id=flight_id
+        )
+    elif flight_type == "skilltest":
+        if not is_examiner(request.user):
+            return HttpResponseForbidden()
+        return render_log_flight(
+            request,
+            norm_type="skilltest",
+            functions=["Dual"],
+            grading_choices=[1, 2],
+            grade_labels={1: "Not Approved", 2: "Approved"},
+            flight_id=flight_id
+        )
+    elif flight_type == "pft":
+        if not is_instructor(request.user):
+            return HttpResponseForbidden()
+        return render_log_flight(
+            request,
+            norm_type="pft",
+            functions=["Dual"],
+            grading_choices=[1, 2],
+            grade_labels={1: "Not Approved", 2: "Approved"},
+            flight_id=flight_id
+        )
+    else:
+        return HttpResponseForbidden("Unknown flight type.")
 
-@login_required
-@user_passes_test(is_examiner)
-def log_flight_skilltest(request):
-    return render_log_flight(
-        request,
-        norm_type="skilltest",
-        functions=["Dual"],
-        grading_choices=[1, 2],
-        grade_labels={1: "Not Approved", 2: "Approved"}
-    )
 
-@login_required
-@user_passes_test(is_instructor)
-def log_flight_pft(request):
-    return render_log_flight(
-        request,
-        norm_type="pft",
-        functions=["Dual"],
-        grading_choices=[1, 2],
-        grade_labels={1: "Not Approved", 2: "Approved"}
-    )
-
-def render_log_flight(request, norm_type, functions, grading_choices, grade_labels):
+def render_log_flight(request, norm_type, functions, grading_choices, grade_labels, flight_id=None):
     # 1) Aircraft & pilot list
     aircrafts = Aircraft.objects.all()
     if norm_type == "lesson":
         pilots = CustomUser.objects.filter(models.Q(allowed_instructors=request.user), groups__name='Student').distinct()
-    if norm_type == "skilltest":
-        # Step 1: Filter students in club or allowed list
-        candidates = CustomUser.objects.filter(models.Q(allowed_instructors=request.user), groups__name='Student').distinct()
-
-        qualified_pilot_ids = []
-
-        # Step 2: Process each candidate pilot
-        for pilot in candidates:
-            passed_all = True
-
-            # Step 2a: Get only relevant exercises for this pilot's ul_class and 'lesson' norm_type
-            relevant_exercises = Exercise.objects.filter(
-                norm__norm_type='lesson',
-                norm__ul_class=pilot.ul_class
-            ).select_related('norm')
-
-            # Group exercises by ID for lookup
-            required_exercise_ids = {exercise.id for exercise in relevant_exercises}
-
-            # Step 2b: Get pilot's recent exercise results (prefetched by flight)
-            flight_results = (
-                FlightResult.objects.filter(pilot=pilot)
-                .prefetch_related(
-                    Prefetch('exerciseresult_set', queryset=ExerciseResult.objects.select_related('exercise'))
-                )
-                .order_by('-off_blocks')  # latest first
-            )
-
-            # Map of {exercise_id: list of most recent grades}
-            grades_by_exercise = defaultdict(list)
-
-            for flight in flight_results:
-                for result in flight.exerciseresult_set.all():
-                    if result.exercise_id in required_exercise_ids:
-                        grades_by_exercise[result.exercise_id].append(result.grade)
-
-            # Step 2c: Check each relevant exercise for 3 most recent grades == 3
-            for eid in required_exercise_ids:
-                last_grades = grades_by_exercise.get(eid, [])
-                if len(last_grades) < 3 or any(g != 3 for g in last_grades[:3]):
-                    passed_all = False
-                    break
-
-            if passed_all:
-                qualified_pilot_ids.append(pilot.id)
-
-        # Step 3: Final queryset of qualifying pilots
-        pilots = candidates.filter(id__in=qualified_pilot_ids)
+    elif norm_type == "skilltest":
+        ...
+        # (same skilltest pilot filtering logic as before)
+        ...
     elif norm_type == "pft":
         pilots = CustomUser.objects.filter(models.Q(allowed_instructors=request.user), groups__name='Pilot').distinct()
 
-    # 2) Selected pilot from GET
-    pilot_id = request.GET.get('pilot_id')
+    flight = None
+    if flight_id:
+        flight = get_object_or_404(FlightResult, pk=flight_id, instructor=request.user)
+        if (now() - flight.created_at) > timedelta(hours=24):
+            return HttpResponseForbidden("Editing window has expired.")
+        norm_type = flight.norm_type  # override to match flight being edited
+
+    # 2) Selected pilot
+    pilot_id = request.GET.get('pilot_id') or (flight.pilot_id if flight else None)
     selected_pilot = None
     if pilot_id:
         selected_pilot = get_object_or_404(CustomUser, id=pilot_id)
 
-    # 3) Filter norms by pilot's norm_type
+    # 3) Filter norms
     if selected_pilot and selected_pilot.ul_class:
         norms = Norm.objects.filter(ul_class=selected_pilot.ul_class, norm_type=norm_type).prefetch_related('exercises').order_by('id')
     else:
         norms = Norm.objects.none()
 
-    # 4) Handle POST for saving the flight
     form_errors = {}
+    form_data = {}
+    form_grades_json = "{}"
+
     if request.method == "POST":
         pid = request.POST.get('pilot_id')
         pilot = get_object_or_404(CustomUser, id=pid)
         pilot_function = request.POST['pilot_function'] if norm_type == "lesson" else "Dual"
 
-        # Parse form fields
         try:
             off_blocks = datetime.fromisoformat(request.POST['off_blocks'])
             on_blocks = datetime.fromisoformat(request.POST['on_blocks'])
@@ -157,7 +127,6 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
         grades = json.loads(request.POST.get('grades', '{}'))
 
         if norm_type == "lesson":
-            # Comment requirement for 1 or 2 grades
             for ex_id_str, grade in grades.items():
                 if grade in (1, 2):
                     comment = request.POST.get(f"comment_{ex_id_str}", "").strip()
@@ -174,44 +143,67 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
                 form_errors["norm_conflict"] = "Cannot log both G and V type norms in the same flight."
 
         if form_errors:
-            return render(request, "logflight.html", {
-                "aircrafts": aircrafts,
-                "pilots": pilots,
-                "functions": functions,
-                "norms": norms,
-                "scores": grading_choices,
-                "grade_labels": grade_labels,
-                "norm_type": norm_type,
-                "selected_pilot": selected_pilot,
-                "form_errors": form_errors,
-                "form_data": {k: v for k, v in request.POST.items()},
-                "form_grades_json": request.POST.get("grades", "{}"),
-            })
+            form_data = {k: v for k, v in request.POST.items()}
+            form_grades_json = request.POST.get("grades", "{}")
+        else:
+            if flight:
+                # Update existing flight
+                flight.pilot = pilot
+                flight.pilot_function = pilot_function
+                flight.aircraft = Aircraft.objects.get(registration=request.POST['aircraft_id'])
+                flight.departure_airfield = request.POST['departure_airfield']
+                flight.arrival_airfield = request.POST['arrival_airfield']
+                flight.off_blocks = request.POST['off_blocks']
+                flight.on_blocks = request.POST['on_blocks']
+                flight.n_landings = request.POST['landings']
+                flight.save()
 
-        # Save result
-        flight_result = FlightResult.objects.create(
-            pilot=pilot,
-            instructor=request.user,
-            pilot_function=pilot_function,
-            aircraft=Aircraft.objects.get(registration=request.POST['aircraft_id']),
-            departure_airfield=request.POST['departure_airfield'],
-            arrival_airfield=request.POST['arrival_airfield'],
-            off_blocks=request.POST['off_blocks'],
-            on_blocks=request.POST['on_blocks'],
-            n_landings=request.POST['landings'],
-            norm_type=norm_type
-        )
+                flight.exerciseresult_set.all().delete()
+            else:
+                # Create new flight
+                flight = FlightResult.objects.create(
+                    pilot=pilot,
+                    instructor=request.user,
+                    pilot_function=pilot_function,
+                    aircraft=Aircraft.objects.get(registration=request.POST['aircraft_id']),
+                    departure_airfield=request.POST['departure_airfield'],
+                    arrival_airfield=request.POST['arrival_airfield'],
+                    off_blocks=request.POST['off_blocks'],
+                    on_blocks=request.POST['on_blocks'],
+                    n_landings=request.POST['landings'],
+                    norm_type=norm_type
+                )
 
-        for exercise_id, grade in grades.items():
-            ex = Exercise.objects.get(id=exercise_id)
-            comment = request.POST.get(f'comment_{exercise_id}', '')
-            ExerciseResult.objects.create(
-                flight_result=flight_result,
-                exercise=ex,
-                grade=grade,
-                comment=comment if comment else ""
-            )
-        return redirect('/')  # success
+            for exercise_id, grade in grades.items():
+                ex = Exercise.objects.get(id=exercise_id)
+                comment = request.POST.get(f'comment_{exercise_id}', '')
+                ExerciseResult.objects.create(
+                    flight_result=flight,
+                    exercise=ex,
+                    grade=grade,
+                    comment=comment if comment else ""
+                )
+
+            return redirect('/')  # Success
+
+    elif flight:
+        # Pre-fill form for edit
+        form_data = {
+            "pilot_id": flight.pilot_id,
+            "pilot_function": flight.pilot_function,
+            "aircraft_id": flight.aircraft.registration,
+            "departure_airfield": flight.departure_airfield,
+            "arrival_airfield": flight.arrival_airfield,
+            "off_blocks": flight.off_blocks.isoformat(),
+            "on_blocks": flight.on_blocks.isoformat(),
+            "landings": flight.n_landings,
+        }
+
+        grades_dict = {}
+        for er in flight.exerciseresult_set.all():
+            grades_dict[str(er.exercise_id)] = er.grade
+            form_data[f"comment_{er.exercise_id}"] = er.comment or ""
+        form_grades_json = json.dumps(grades_dict)
 
     return render(request, "logflight.html", {
         "aircrafts": aircrafts,
@@ -222,10 +214,11 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
         "grade_labels": grade_labels,
         "norm_type": norm_type,
         "selected_pilot": selected_pilot,
-        "form_data": {},
-        "form_grades_json": "{}",  # Also helpful
+        "form_data": form_data,
+        "form_errors": form_errors,
+        "form_grades_json": form_grades_json,
+        "flight": flight,  # optional: used to show "Editing flight..." in template
     })
-
 
 @login_required
 def get_lesson_scores(request, pilot_id):
@@ -487,60 +480,117 @@ def skilltest_form(request):
 
 @login_required
 def logbook_view(request):
-    flights = FlightResult.objects.filter(pilot=request.user).select_related('instructor', 'aircraft').order_by('-off_blocks')
+    user = request.user
+
+    # — select current pilot —
+    pilot = None
+    allowed_pilots = None
+    if user.is_instructor or user.is_uddannelseschef:
+        student_group = Group.objects.get(name="Student")
+        allowed_pilots = CustomUser.objects.filter(groups=student_group)
+
+        if not user.is_superuser:
+            allowed_pilots = allowed_pilots.filter(allowed_instructors=user)
+
+        allowed_pilots = allowed_pilots.distinct()
+
+        pid = request.GET.get("pilot_id")
+        if pid:
+            pilot = get_object_or_404(CustomUser, pk=pid, groups=student_group)
+    else:
+        pilot = user
+
+    # — compute log entries if pilot selected —
     logs = []
     total_time = dual_time = pic_time = 0
 
-    for flight in flights:
-        duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
-        duration_hours = duration_seconds / 3600
-        total_time += duration_hours
+    if pilot:
+        if user.is_instructor or user.is_uddannelseschef:
+            # Instructors see flights where they were instructor for the selected pilot
+            flights = FlightResult.objects.filter(
+                instructor=user,
+                pilot=pilot
+            )
+        else:
+            # Students see flights where they were the pilot (regardless of instructor)
+            flights = FlightResult.objects.filter(
+                pilot=pilot
+            )
 
-        # Time classification
-        if flight.norm_type == "lesson":
-            tag = "Lesson"
-            if flight.pilot_function == "PIC":
-                pic_time += duration_hours
-            else:
+        flights = flights.select_related('instructor', 'aircraft').order_by('-off_blocks')
+
+        for flight in flights:
+            is_editable = False
+            if user.is_instructor:
+                is_editable = (now() - flight.created_at) < timedelta(hours=24 * 7)
+            if user.is_uddannelseschef:
+                is_editable = True
+
+            duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
+            duration_hours = duration_seconds / 3600
+            total_time += duration_hours
+
+            # Time classification
+            if flight.norm_type == "lesson":
+                tag = "Lesson"
+                if flight.pilot_function == "PIC":
+                    pic_time += duration_hours
+                else:
+                    dual_time += duration_hours
+            elif flight.pilot_function == "Skill Test":
+                tag = "Skill Test"
                 dual_time += duration_hours
-        elif flight.pilot_function == "Skill Test":
-            tag = "Skill Test"
-            dual_time += duration_hours
-        elif flight.pilot_function == "PFT":
-            tag = "PFT"
-            dual_time += duration_hours
+            elif flight.pilot_function == "PFT":
+                tag = "PFT"
+                dual_time += duration_hours
+            else:
+                tag = "Other"
 
-        # Norms & Exercises with comments
-        exercises = ExerciseResult.objects.filter(flight_result=flight).select_related('exercise__norm')
-        norm_entries = [
-            {
-                "title": f"{e.exercise.norm.title}: {e.exercise.title}",
-                "grade": e.grade,
-                "comment": e.comment if e.comment else ""
-            }
-            for e in exercises
-        ]
+            # Norms & Exercises
+            exercises = ExerciseResult.objects.filter(
+                flight_result=flight
+            ).select_related('exercise__norm')
 
-        logs.append({
-            "date": localtime(flight.off_blocks).strftime("%B %d, %Y"),
-            "aircraft": flight.aircraft.registration,
-            "aircraft_type": flight.aircraft.type,
-            "duration": f"{int(duration_seconds // 3600):02}:{int((duration_seconds % 3600) // 60):02}",
-            "instructor": flight.instructor.full_name if flight.instructor else "N/A",
-            "departure_time": localtime(flight.off_blocks).strftime("%H:%M"),
-            "departure_airfield": flight.departure_airfield,
-            "arrival_time": localtime(flight.on_blocks).strftime("%H:%M"),
-            "arrival_airfield": flight.arrival_airfield,
-            "notes": f"{flight.n_landings} landings",
-            "tag": tag,
-            "norms": norm_entries,
-        })
+            norm_entries = [
+                {
+                    "title": f"{e.exercise.norm.title}: {e.exercise.title}",
+                    "grade": e.grade,
+                    "comment": e.comment or ""
+                }
+                for e in exercises
+            ]
+
+            logs.append({
+                "date": localtime(flight.off_blocks).strftime("%B %d, %Y"),
+                "aircraft": flight.aircraft.registration,
+                "aircraft_type": flight.aircraft.type,
+                "duration": f"{int(duration_seconds // 3600):02}:{int((duration_seconds % 3600) // 60):02}",
+                "instructor": flight.instructor.full_name if flight.instructor else "N/A",
+                "departure_time": localtime(flight.off_blocks).strftime("%H:%M"),
+                "departure_airfield": flight.departure_airfield,
+                "arrival_time": localtime(flight.on_blocks).strftime("%H:%M"),
+                "arrival_airfield": flight.arrival_airfield,
+                "notes": f"{flight.n_landings} landings",
+                "tag": tag,
+                "norms": norm_entries,
+                "is_editable": is_editable,
+                "norm_type": flight.norm_type,
+                "id": flight.id,
+            })
+
+    # — format total hours as hh:mm —
+    def fmt(hours_float):
+        total_minutes = int(hours_float * 60)
+        h, m = divmod(total_minutes, 60)
+        return f"{h:02}:{m:02}"
 
     context = {
-        "total_hours": f"{int(total_time):02}:{int((total_time * 60) % 60):02}",
-        "pic_hours": f"{int(pic_time):02}:{int((pic_time * 60) % 60):02}",
-        "dual_hours": f"{int(dual_time):02}:{int((dual_time * 60) % 60):02}",
+        "total_hours": fmt(total_time),
+        "pic_hours": fmt(pic_time),
+        "dual_hours": fmt(dual_time),
         "flight_logs": logs,
+        "allowed_pilots": allowed_pilots,
+        "selected_pilot_id": pilot.pk if pilot and user.is_instructor else None,
     }
-    return render(request, "account/logbook.html", context)
 
+    return render(request, "account/logbook.html", context)

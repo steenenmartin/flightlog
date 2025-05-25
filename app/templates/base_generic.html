@@ -24,7 +24,7 @@
           <a href="{% url 'home' %}" class="hover:text-blue-600">Home</a>
           {% if user.is_authenticated %}
             {% if user.is_instructor %}
-              <a href="/logflight/lesson/" class="text-gray-700 hover:text-blue-600 transition">Log Lesson</a>
+              <a href="{% url 'log_flight' 'lesson' %}" class="text-gray-700 hover:text-blue-600 transition">Log Lesson</a>
             {% endif %}
             <a href="/account/" class="text-gray-700 hover:text-blue-600 transition">Account</a>
             <a href="{% url 'logout' %}" class="text-gray-700 hover:text-red-600 transition">Log out</a>
@@ -54,7 +54,7 @@
             <a href="{% url 'home' %}" class="px-4 py-2 hover:bg-gray-100">Home</a>
             {% if user.is_authenticated %}
               {% if user.is_instructor %}
-                <a href="/logflight/lesson/" class="px-4 py-2 text-gray-700 hover:bg-gray-100">Log Lesson</a>
+                <a href="{% url 'log_flight' 'lesson' %}" class="px-4 py-2 text-gray-700 hover:bg-gray-100">Log Lesson</a>
               {% endif %}
               <a href="/account/" class="px-4 py-2 text-gray-700 hover:bg-gray-100">Account</a>
               <a href="{% url 'logout' %}" class="px-4 py-2 text-red-600 hover:bg-gray-100 transition">Log out</a>

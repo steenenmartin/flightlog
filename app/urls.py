@@ -15,9 +15,8 @@ urlpatterns = [
     path('account/lesson-progress/', lesson_progress, name='lesson_progress'),
     path('account/grant-access/', grant_instructor_access, name='grant_access'),
 
-    path("logflight/lesson/", log_flight_lesson, name="log_flight_lesson"),
-    path("logflight/pft/", log_flight_pft, name="log_flight_pft"),
-    path("logflight/skilltest/", log_flight_skilltest, name="log_flight_skilltest"),
+    path("logflight/<str:flight_type>/", log_flight_dispatch, name="log_flight"),
+    path("logflight/<str:flight_type>/<int:flight_id>/", log_flight_dispatch, name="edit_flight"),
     path('get_lesson_scores/<int:pilot_id>/', get_lesson_scores, name='get_lesson_scores'),
 
     # Password reset URLs
