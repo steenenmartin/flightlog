@@ -253,7 +253,8 @@
     <!-- Norms & Exercises -->
     <div class="space-y-4">
       {% for norm in norms %}
-        <div x-data="{ open: false }" x-init="open = false"
+        <div x-data="{ open: false }"
+             x-cloak
              class="rounded-xl bg-gray-50 shadow border border-blue-100 p-4"
              data-norm-id="{{ norm.id }}"
              data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">
