@@ -165,210 +165,212 @@
 {% endblock %}
 
 {% block content %}
-<div class="w-full bg-white shadow-2xl rounded-2xl p-6 mx-auto max-w-4xl space-y-6">
-  <h1 class="text-2xl font-bold text-center text-blue-800">Flight Log</h1>
+<div class="pt-6 px-4">
+  <div class="w-full bg-white shadow-2xl rounded-2xl p-6 mx-auto max-w-4xl space-y-6">
+    <h1 class="text-2xl font-bold text-center text-blue-800">Flight Log</h1>
 
-  {% if form_errors %}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative space-y-2" role="alert">
-      {% for field, error in form_errors.items %}
-        <p>{{ error }}</p>
-      {% endfor %}
-    </div>
-  {% endif %}
-
-  <!-- GET form: select pilot -->
-  <form method="get" class="mb-6">
-    <label for="pilot_id" class="block text-sm font-medium text-gray-700">
-      Select pilot
-    </label>
-    <select name="pilot_id" id="pilot_id"
-            class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            onchange="this.form.submit()">
-      <option value="" disabled {% if not selected_pilot %}selected{% endif %}>
-        Select Pilot
-      </option>
-      {% for pilot in pilots %}
-        <option value="{{ pilot.id }}"
-            {% if selected_pilot and pilot.id == selected_pilot.id %}selected{% endif %}>
-          {{ pilot.full_name }}
-        </option>
-      {% endfor %}
-    </select>
-  </form>
-
-  <!-- POST form -->
-  <form method="POST" class="space-y-6 post-form">
-    {% csrf_token %}
-    {% if selected_pilot %}
-      <input type="hidden" name="pilot_id" value="{{ selected_pilot.id }}">
-    {% endif %}
-
-    <!-- Pilot function -->
-    {% if norm_type == "lesson" %}
-      <div>
-        <label for="pilot_function" class="block text-sm font-medium text-gray-700">Select Pilot Function</label>
-        <select name="pilot_function" id="pilot_function" required
-                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-          <option value="" disabled selected>Select Pilot Function</option>
-          {% for function in functions %}
-            <option value="{{ function }}">{{ function }}</option>
-          {% endfor %}
-        </select>
+    {% if form_errors %}
+      <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative space-y-2" role="alert">
+        {% for field, error in form_errors.items %}
+          <p>{{ error }}</p>
+        {% endfor %}
       </div>
-    {% else %}
-      <!-- Hidden input with fixed value 'Dual' -->
-      <input type="hidden" name="pilot_function" value="Dual">
     {% endif %}
 
-    <div>
-      <label for="aircraft_id" class="block text-sm font-medium text-gray-700">Aircraft</label>
-      <select name="aircraft_id" id="aircraft_id" required
-              class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-        <option value="" disabled {% if not form_data.aircraft_id %}selected{% endif %}>Select an aircraft</option>
-        {% for ac in aircrafts %}
-          <option value="{{ ac.registration }}"
-                  {% if form_data.aircraft_id == ac.registration %}selected{% endif %}>
-            {{ ac.registration }}
+    <!-- GET form: select pilot -->
+    <form method="get" class="mb-6">
+      <label for="pilot_id" class="block text-sm font-medium text-gray-700">
+        Select pilot
+      </label>
+      <select name="pilot_id" id="pilot_id"
+              class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              onchange="this.form.submit()">
+        <option value="" disabled {% if not selected_pilot %}selected{% endif %}>
+          Select Pilot
+        </option>
+        {% for pilot in pilots %}
+          <option value="{{ pilot.id }}"
+              {% if selected_pilot and pilot.id == selected_pilot.id %}selected{% endif %}>
+            {{ pilot.full_name }}
           </option>
         {% endfor %}
       </select>
-    </div>
+    </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label for="departure_airfield" class="block text-sm font-medium text-gray-700">Departure Airfield</label>
-        <input type="text" name="departure_airfield" id="departure_airfield" required
-               value="{{ form_data.departure_airfield|default:'' }}"
-               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-      </div>
-      <div>
-        <label for="arrival_airfield" class="block text-sm font-medium text-gray-700">Arrival Airfield</label>
-        <input type="text" name="arrival_airfield" id="arrival_airfield" required
-               value="{{ form_data.arrival_airfield|default:'' }}"
-               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-      </div>
-      <div>
-        <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks (UTC)</label>
-        <input type="datetime-local" name="off_blocks" id="off_blocks" required
-               value="{{ form_data.off_blocks|default:'' }}"
-               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-      </div>
-      <div>
-        <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks (UTC)</label>
-        <input type="datetime-local" name="on_blocks" id="on_blocks" required
-               value="{{ form_data.on_blocks|default:'' }}"
-               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-      </div>
-      <div class="md:col-span-2">
-        <label for="landings" class="block text-sm font-medium text-gray-700">Number of Landings</label>
-        <input type="number" name="landings" id="landings" min="0" required
-               value="{{ form_data.landings|default:'' }}"
-               class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-      </div>
-    </div>
+    <!-- POST form -->
+    <form method="POST" class="space-y-6 post-form">
+      {% csrf_token %}
+      {% if selected_pilot %}
+        <input type="hidden" name="pilot_id" value="{{ selected_pilot.id }}">
+      {% endif %}
 
-    <!-- Norms & Exercises -->
-    <div class="space-y-4">
-      {% for norm in norms %}
-        <div x-data="{ open: false }"
-             x-cloak
-             class="rounded-xl bg-gray-50 shadow border border-blue-100 p-4"
-             data-norm-id="{{ norm.id }}"
-             data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">
-          <button type="button"
-                  class="w-full flex justify-between items-center font-semibold text-blue-800 mb-2"
-                  @click="open = !open">
-            <span>{{ norm.title }}</span>
-            <!-- plus icon when closed -->
-            <svg x-show="!open" xmlns="http://www.w3.org/2000/svg"
-                 class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M12 4v16m8-8H4" />
-            </svg>
-            <!-- x icon when open -->
-            <svg x-show="open" xmlns="http://www.w3.org/2000/svg"
-                 class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <div x-show="open" x-transition class="space-y-4">
-            {% if norm.longdescription %}
-              <div class="text-sm text-gray-700 ">
-                {{ norm.longdescription|safe }}
-              </div>
-            {% endif %}
-            {% for exercise in norm.exercises.all %}
-              <div>
-                <div
-                  class="font-medium text-gray-700 inline-flex items-center"
-                  data-exercise-id-title="{{ exercise.id }}">
-                  <span class="exercise-label">{{ exercise.title }}</span>
+      <!-- Pilot function -->
+      {% if norm_type == "lesson" %}
+        <div>
+          <label for="pilot_function" class="block text-sm font-medium text-gray-700">Select Pilot Function</label>
+          <select name="pilot_function" id="pilot_function" required
+                  class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            <option value="" disabled selected>Select Pilot Function</option>
+            {% for function in functions %}
+              <option value="{{ function }}">{{ function }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% else %}
+        <!-- Hidden input with fixed value 'Dual' -->
+        <input type="hidden" name="pilot_function" value="Dual">
+      {% endif %}
+
+      <div>
+        <label for="aircraft_id" class="block text-sm font-medium text-gray-700">Aircraft</label>
+        <select name="aircraft_id" id="aircraft_id" required
+                class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+          <option value="" disabled {% if not form_data.aircraft_id %}selected{% endif %}>Select an aircraft</option>
+          {% for ac in aircrafts %}
+            <option value="{{ ac.registration }}"
+                    {% if form_data.aircraft_id == ac.registration %}selected{% endif %}>
+              {{ ac.registration }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="departure_airfield" class="block text-sm font-medium text-gray-700">Departure Airfield</label>
+          <input type="text" name="departure_airfield" id="departure_airfield" required
+                 value="{{ form_data.departure_airfield|default:'' }}"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+          <label for="arrival_airfield" class="block text-sm font-medium text-gray-700">Arrival Airfield</label>
+          <input type="text" name="arrival_airfield" id="arrival_airfield" required
+                 value="{{ form_data.arrival_airfield|default:'' }}"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+          <label for="off_blocks" class="block text-sm font-medium text-gray-700">Off Blocks (UTC)</label>
+          <input type="datetime-local" name="off_blocks" id="off_blocks" required
+                 value="{{ form_data.off_blocks|default:'' }}"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+          <label for="on_blocks" class="block text-sm font-medium text-gray-700">On Blocks (UTC)</label>
+          <input type="datetime-local" name="on_blocks" id="on_blocks" required
+                 value="{{ form_data.on_blocks|default:'' }}"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div class="md:col-span-2">
+          <label for="landings" class="block text-sm font-medium text-gray-700">Number of Landings</label>
+          <input type="number" name="landings" id="landings" min="0" required
+                 value="{{ form_data.landings|default:'' }}"
+                 class="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+      </div>
+
+      <!-- Norms & Exercises -->
+      <div class="space-y-4">
+        {% for norm in norms %}
+          <div x-data="{ open: false }"
+               x-cloak
+               class="rounded-xl bg-gray-50 shadow border border-blue-100 p-4"
+               data-norm-id="{{ norm.id }}"
+               data-exercise-ids="{% for ex in norm.exercises.all %}{{ ex.id }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+            <button type="button"
+                    class="w-full flex justify-between items-center font-semibold text-blue-800 mb-2"
+                    @click="open = !open">
+              <span>{{ norm.title }}</span>
+              <!-- plus icon when closed -->
+              <svg x-show="!open" xmlns="http://www.w3.org/2000/svg"
+                   class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 4v16m8-8H4" />
+              </svg>
+              <!-- x icon when open -->
+              <svg x-show="open" xmlns="http://www.w3.org/2000/svg"
+                   class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div x-show="open" x-transition class="space-y-4">
+              {% if norm.longdescription %}
+                <div class="text-sm text-gray-700 ">
+                  {{ norm.longdescription|safe }}
                 </div>
-                {% if exercise.longdescription %}
-                  <div class="text-sm text-gray-600 mb-2">
-                    {{ exercise.longdescription|safe }}
+              {% endif %}
+              {% for exercise in norm.exercises.all %}
+                <div>
+                  <div
+                    class="font-medium text-gray-700 inline-flex items-center"
+                    data-exercise-id-title="{{ exercise.id }}">
+                    <span class="exercise-label">{{ exercise.title }}</span>
                   </div>
-                {% endif %}
-                <div class="flex gap-2 mb-4">
-                  {% for score in scores %}
-                    <button type="button"
-                            class="px-4 py-1 border rounded-full border-gray-300 text-sm font-medium transition duration-150 ease-in-out"
-                            data-exercise-id="{{ exercise.id }}"
-                            data-score="{{ score }}"
-                            onclick="
-                              const current = grades['{{ exercise.id }}'];
-                              const newScore = (current === {{ score }}) ? null : {{ score }};
-                              grades['{{ exercise.id }}'] = newScore;
-                              window.grades['{{ exercise.id }}'] = newScore;
+                  {% if exercise.longdescription %}
+                    <div class="text-sm text-gray-600 mb-2">
+                      {{ exercise.longdescription|safe }}
+                    </div>
+                  {% endif %}
+                  <div class="flex gap-2 mb-4">
+                    {% for score in scores %}
+                      <button type="button"
+                              class="px-4 py-1 border rounded-full border-gray-300 text-sm font-medium transition duration-150 ease-in-out"
+                              data-exercise-id="{{ exercise.id }}"
+                              data-score="{{ score }}"
+                              onclick="
+                                const current = grades['{{ exercise.id }}'];
+                                const newScore = (current === {{ score }}) ? null : {{ score }};
+                                grades['{{ exercise.id }}'] = newScore;
+                                window.grades['{{ exercise.id }}'] = newScore;
 
-                              const buttons = this.parentElement.querySelectorAll('button');
-                              buttons.forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
+                                const buttons = this.parentElement.querySelectorAll('button');
+                                buttons.forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
 
-                              if (newScore !== null) {
-                                this.classList.add('bg-blue-600', 'text-white');
-                              }
+                                if (newScore !== null) {
+                                  this.classList.add('bg-blue-600', 'text-white');
+                                }
 
-                              const box = this.closest('.flex').nextElementSibling;
-                              if (newScore === 1 || newScore === 2) {
-                                box.style.display = 'block';
-                              } else {
-                                box.style.display = 'none';
-                              }
-                            "
-                    >
-                      {{ grade_labels|default:score|get_item:score }}
-                    </button>
-                  {% endfor %}
-                </div>
-                {% if norm_type == "lesson" %}
-                  {% with exercise.id|stringformat:"s" as eid_str %}
-                    {% with "comment_"|add:eid_str as comment_key %}
-                      {% with form_data|get_item:comment_key as comment_val %}
-                        <div class="comment-box" style="{% if not comment_val %}display: none;{% endif %}">
-                          <textarea name="comment_{{ exercise.id }}" rows="1"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Write a comment...">{{ comment_val|default_if_none:''|escape }}</textarea>
-                        </div>
+                                const box = this.closest('.flex').nextElementSibling;
+                                if (newScore === 1 || newScore === 2) {
+                                  box.style.display = 'block';
+                                } else {
+                                  box.style.display = 'none';
+                                }
+                              "
+                      >
+                        {{ grade_labels|default:score|get_item:score }}
+                      </button>
+                    {% endfor %}
+                  </div>
+                  {% if norm_type == "lesson" %}
+                    {% with exercise.id|stringformat:"s" as eid_str %}
+                      {% with "comment_"|add:eid_str as comment_key %}
+                        {% with form_data|get_item:comment_key as comment_val %}
+                          <div class="comment-box" style="{% if not comment_val %}display: none;{% endif %}">
+                            <textarea name="comment_{{ exercise.id }}" rows="1"
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                      placeholder="Write a comment...">{{ comment_val|default_if_none:''|escape }}</textarea>
+                          </div>
+                        {% endwith %}
                       {% endwith %}
                     {% endwith %}
-                  {% endwith %}
-                  <div class="latest-comment text-sm text-gray-500 mt-1" data-exercise-id-comment="{{ exercise.id }}" style="display:none;">
-                    <span class="font-medium">Latest comment:</span>
-                    <span class="comment-text"></span>
-                  </div>
-                {% endif %}
-              </div>
-            {% endfor %}
+                    <div class="latest-comment text-sm text-gray-500 mt-1" data-exercise-id-comment="{{ exercise.id }}" style="display:none;">
+                      <span class="font-medium">Latest comment:</span>
+                      <span class="comment-text"></span>
+                    </div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
           </div>
-        </div>
-      {% endfor %}
-    </div>
+        {% endfor %}
+      </div>
 
-    <button type="submit"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl transition">
-      Save Flight
-    </button>
-  </form>
+      <button type="submit"
+              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-xl transition">
+        Save Flight
+      </button>
+    </form>
+  </div>
 </div>
 {% endblock %}
