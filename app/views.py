@@ -312,9 +312,7 @@ def grant_instructor_access(request):
     pilot = request.user
 
     # Instructors not in the same club and not already added
-    instructors = CustomUser.objects.filter(
-        groups__name='Instructor'
-    ).exclude(id__in=pilot.allowed_instructors.all())
+    instructors = CustomUser.objects.filter(groups__name='Instructor').exclude(id__in=pilot.allowed_instructors.all()).exclude(id=request.user.id)
 
     # Instructors who currently have access
     current_instructors = pilot.allowed_instructors.filter(groups__name='Instructor')
