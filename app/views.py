@@ -175,6 +175,10 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
             if on_blocks < off_blocks:
                 form_errors["blocks"] = "On blocks must be after or equal to off blocks."
 
+        n_landings = request.POST["landings"]
+        if n_landings > 0 and off_blocks == on_blocks:
+            form_errors["landings"] = f"If number of landings ({n_landings}) > 0, off blocks must be different from on blocks."
+
         grades = json.loads(request.POST.get('grades', '{}'))
 
         if norm_type == "lesson":
@@ -219,9 +223,9 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
                     aircraft=Aircraft.objects.get(registration=request.POST['aircraft_id']),
                     departure_airfield=request.POST['departure_airfield'],
                     arrival_airfield=request.POST['arrival_airfield'],
-                    off_blocks=request.POST['off_blocks'],
-                    on_blocks=request.POST['on_blocks'],
-                    n_landings=request.POST['landings'],
+                    off_blocks=off_blocks,
+                    on_blocks=on_blocks,
+                    n_landings=n_landings,
                     norm_type=norm_type
                 )
 
