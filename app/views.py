@@ -543,10 +543,10 @@ def logbook_view(request):
                     pic_time += duration_hours
                 else:
                     dual_time += duration_hours
-            elif flight.pilot_function == "Skill Test":
+            elif flight.norm_type == "skilltest":
                 tag = "Skill Test"
                 dual_time += duration_hours
-            elif flight.pilot_function == "PFT":
+            elif flight.norm_type == "pft":
                 tag = "PFT"
                 dual_time += duration_hours
             else:
