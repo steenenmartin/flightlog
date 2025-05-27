@@ -142,7 +142,9 @@
     }
 
     if (Object.keys(window.grades).length > 0) {
-      updatePills(window.grades);
+      if (window.normType === "lesson") {
+        updatePills(window.grades);
+      }
 
       // Also re-apply pill selection
       Object.entries(window.grades).forEach(([exerciseId, score]) => {
