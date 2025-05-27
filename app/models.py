@@ -9,6 +9,8 @@ from django.utils.translation import gettext_lazy as _
 from django.core.mail import send_mail
 from django.db import models
 
+from app.utils import format_hhmm
+
 UL_CLASS_CHOICES = [
     ('A', 'A'),
     ('B', 'B'),
@@ -168,18 +170,51 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def email_user(self, subject, message, from_email=None, **kwargs):
         send_mail(subject, message, from_email, [self.email], **kwargs)
 
-    def total_block_time(self):
-        total = self.flight_pilot.annotate(
-            block_duration=ExpressionWrapper(
-                F('on_blocks') - F('off_blocks'),
-                output_field=DurationField()
-            )
-        ).aggregate(total=Sum('block_duration'))['total']
-        return total or timedelta()
+    def get_flight_summary(self, pilot=None):
+        if not pilot:
+            pilot = self
 
-    def total_landings(self):
-        total = self.flight_pilot.aggregate(total=Sum('n_landings'))['total']
-        return total or 0
+        if self.is_uddannelseschef:
+            pass
+        elif self.is_instructor:
+            flights = FlightResult.objects.filter(instructor=self, pilot=pilot)
+        else:
+            flights = FlightResult.objects.filter(pilot=pilot)
+
+        flights = flights.select_related('instructor', 'aircraft').order_by('-off_blocks')
+
+        total_time = dual_time = pic_time = 0
+        total_landings = dual_landings = pic_landings = 0
+
+        for flight in flights:
+            duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
+            duration_hours = duration_seconds / 3600
+            total_time += duration_hours
+            total_landings += flight.n_landings
+
+            if flight.norm_type == "lesson":
+                if flight.pilot_function == "PIC":
+                    pic_time += duration_hours
+                    pic_landings += flight.n_landings
+                else:
+                    dual_time += duration_hours
+                    dual_landings += flight.n_landings
+            elif flight.norm_type in ("skilltest", "pft"):
+                dual_time += duration_hours
+                dual_landings += flight.n_landings
+            else:
+                # Treat other types as dual unless you want something different
+                dual_time += duration_hours
+                dual_landings += flight.n_landings
+
+        return {
+            "total_hours": format_hhmm(total_time),
+            "dual_hours": format_hhmm(dual_time),
+            "pic_hours": format_hhmm(pic_time),
+            "total_landings": total_landings,
+            "dual_landings": dual_landings,
+            "pic_landings": pic_landings,
+        }
 
 
 class FlightResult(models.Model):

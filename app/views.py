@@ -5,11 +5,11 @@ from datetime import timedelta, datetime
 from django import forms
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import Group
 from django.db import models
-from django.db.models import ExpressionWrapper, DurationField, F, Sum, Max, Prefetch
+from django.db.models import Max, Prefetch
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -17,7 +17,6 @@ from django.utils.safestring import mark_safe
 from django.utils.timezone import localtime, now
 
 from .models import Norm, Aircraft, Exercise, ExerciseResult, FlightResult, CustomUser
-
 
 GRADE_LABELS = {
     "lesson": {1: "1", 2: "2", 3: "3"},
@@ -36,17 +35,11 @@ def manage_account(request):
     # Your logic for managing account
     return render(request, 'account/manage_account.html')
 
-def is_instructor(user):
-    return user.groups.filter(name="Instructor").exists()
-
-def is_examiner(user):
-    return user.groups.filter(name="Examiner").exists()
-
 
 @login_required
 def log_flight_dispatch(request, flight_type, flight_id=None):
     if flight_type == "lesson":
-        if not is_instructor(request.user):
+        if not request.user.is_instructor:
             return HttpResponseForbidden()
         return render_log_flight(
             request,
@@ -57,7 +50,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             flight_id=flight_id
         )
     elif flight_type == "skilltest":
-        if not is_examiner(request.user):
+        if not request.user.is_examiner:
             return HttpResponseForbidden()
         return render_log_flight(
             request,
@@ -68,7 +61,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             flight_id=flight_id
         )
     elif flight_type == "pft":
-        if not is_instructor(request.user):
+        if not request.user.is_instructor:
             return HttpResponseForbidden()
         return render_log_flight(
             request,
@@ -423,33 +416,16 @@ def lesson_progress(request):
     else:
         pilot = user
 
-    # — helper: sum block-time —
-    def sum_block_time(qs):
-        return (
-            qs.annotate(
-                block_duration=ExpressionWrapper(
-                    F('on_blocks') - F('off_blocks'),
-                    output_field=DurationField()
-                )
-            )
-            .aggregate(total=Sum('block_duration'))['total']
-            or timedelta()
-        )
-
     # — compute stats & exercise-scores with last_three —
     if pilot:
-        base_qs = pilot.flight_pilot.all()
+        summary = user.get_flight_summary(pilot)
+        total_bt = summary['total_hours']
+        dual_bt = summary['dual_hours']
+        pic_bt = summary['pic_hours']
+        total_ld = summary['total_landings']
+        dual_ld = summary['dual_landings']
+        pic_ld = summary['pic_landings']
 
-        # block-time and landings totals
-        total_bt = sum_block_time(base_qs)
-        dual_bt  = sum_block_time(base_qs.filter(pilot_function='Dual'))
-        pic_bt   = sum_block_time(base_qs.filter(pilot_function='PIC'))
-
-        total_ld = base_qs.aggregate(total=Sum('n_landings'))['total'] or 0
-        dual_ld  = base_qs.filter(pilot_function='Dual').aggregate(total=Sum('n_landings'))['total'] or 0
-        pic_ld   = base_qs.filter(pilot_function='PIC').aggregate(total=Sum('n_landings'))['total'] or 0
-
-        # build per-exercise last_three + highest_score
         last_three_map = defaultdict(list)
         results = ExerciseResult.objects.filter(
             flight_result__pilot=pilot
@@ -462,16 +438,13 @@ def lesson_progress(request):
 
         scores = {}
         for ex_id, last_three in last_three_map.items():
-            # Get the highest score ever
             highest = ExerciseResult.objects.filter(
                 flight_result__pilot=pilot,
                 exercise_id=ex_id
             ).aggregate(max_grade=Max('grade'))['max_grade'] or 0
 
-            # Make newest first
             last_three = list(reversed(last_three))
 
-            # Get the most recent comment
             latest_comment_qs = ExerciseResult.objects.filter(
                 flight_result__pilot=pilot,
                 exercise_id=ex_id,
@@ -488,35 +461,26 @@ def lesson_progress(request):
                 'latest_comment': latest_comment,
             }
     else:
-        total_bt = dual_bt = pic_bt = timedelta()
+        total_bt = dual_bt = pic_bt = 0
         total_ld = dual_ld = pic_ld = 0
         scores = {}
 
-    # format hh:mm
-    def fmt(td: timedelta) -> str:
-        secs = int(td.total_seconds())
-        h, rem = divmod(secs, 3600)
-        m = rem // 60
-        return f"{h:02}:{m:02}"
-
     pilot_data = {
         'full_name':        pilot.full_name if pilot else '',
-        'total_block_time': fmt(total_bt),
-        'dual_block_time':  fmt(dual_bt),
-        'pic_block_time':   fmt(pic_bt),
+        'total_block_time': total_bt,
+        'dual_block_time':  dual_bt,
+        'pic_block_time':   pic_bt,
         'total_landings':   total_ld,
         'dual_landings':    dual_ld,
         'pic_landings':     pic_ld,
     }
 
-    # AJAX JSON response
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
         return JsonResponse({
             'pilot': pilot_data,
-            'scores':  scores,
+            'scores': scores,
         })
 
-    # initial page render
     norms = Norm.objects.prefetch_related('exercises').filter(norm_type="lesson").order_by('id')
     return render(request, "account/lesson_progress.html", {
         'allowed_pilots':    allowed_pilots,
@@ -556,7 +520,6 @@ def logbook_view(request):
 
     # — compute log entries if pilot selected —
     logs = []
-    total_time = dual_time = pic_time = 0
 
     if pilot:
         if user.is_instructor or user.is_uddannelseschef:
@@ -574,29 +537,21 @@ def logbook_view(request):
         flights = flights.select_related('instructor', 'aircraft').order_by('-off_blocks')
 
         for flight in flights:
+            duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
+            duration_hours = duration_seconds / 3600
+
             is_editable = False
             if user.is_instructor:
                 is_editable = (now() - flight.created_at) < timedelta(hours=24 * 7)
             if user.is_uddannelseschef:
                 is_editable = True
 
-            duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
-            duration_hours = duration_seconds / 3600
-            total_time += duration_hours
-
-            # Time classification
             if flight.norm_type == "lesson":
                 tag = "Lesson"
-                if flight.pilot_function == "PIC":
-                    pic_time += duration_hours
-                else:
-                    dual_time += duration_hours
             elif flight.norm_type == "skilltest":
                 tag = "Skill Test"
-                dual_time += duration_hours
             elif flight.norm_type == "pft":
                 tag = "PFT"
-                dual_time += duration_hours
             else:
                 tag = "Other"
 
@@ -633,19 +588,12 @@ def logbook_view(request):
                 "id": flight.id,
             })
 
-    # — format total hours as hh:mm —
-    def fmt(hours_float):
-        total_minutes = int(hours_float * 60)
-        h, m = divmod(total_minutes, 60)
-        return f"{h:02}:{m:02}"
-
     context = {
-        "total_hours": fmt(total_time),
-        "pic_hours": fmt(pic_time),
-        "dual_hours": fmt(dual_time),
         "flight_logs": logs,
         "allowed_pilots": allowed_pilots,
         "selected_pilot_id": pilot.pk if pilot and user.is_instructor else None,
     }
+
+    context.update(request.user.get_flight_summary(pilot))
 
     return render(request, "account/logbook.html", context)
