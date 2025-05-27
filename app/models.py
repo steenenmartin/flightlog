@@ -152,6 +152,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         verbose_name_plural = _("users")
 
     @property
+    def is_student(self):
+        return self.groups.filter(name='Student').exists()
+
+    @property
+    def is_pilot(self):
+        return self.groups.filter(name='Pilot').exists()
+
+    @property
     def is_instructor(self):
         return self.groups.filter(name='Instructor').exists()
 
@@ -175,7 +183,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             pilot = self
 
         if self.is_uddannelseschef:
-            pass
+            flights = FlightResult.objects.filter(pilot=pilot)
         elif self.is_instructor:
             flights = FlightResult.objects.filter(instructor=self, pilot=pilot)
         else:

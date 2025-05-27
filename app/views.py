@@ -39,7 +39,7 @@ def manage_account(request):
 @login_required
 def log_flight_dispatch(request, flight_type, flight_id=None):
     if flight_type == "lesson":
-        if not request.user.is_instructor:
+        if not (request.user.is_instructor or request.user.is_superuser):
             return HttpResponseForbidden()
         return render_log_flight(
             request,
@@ -50,7 +50,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             flight_id=flight_id
         )
     elif flight_type == "skilltest":
-        if not request.user.is_examiner:
+        if not (request.user.is_examiner or request.user.is_superuser):
             return HttpResponseForbidden()
         return render_log_flight(
             request,
@@ -61,7 +61,7 @@ def log_flight_dispatch(request, flight_type, flight_id=None):
             flight_id=flight_id
         )
     elif flight_type == "pft":
-        if not request.user.is_instructor:
+        if not (request.user.is_instructor or request.user.is_superuser):
             return HttpResponseForbidden()
         return render_log_flight(
             request,
@@ -133,8 +133,8 @@ def render_log_flight(request, norm_type, functions, grading_choices, grade_labe
 
     flight = None
     if flight_id:
-        flight = get_object_or_404(FlightResult, pk=flight_id, instructor=request.user)
-        if (now() - flight.created_at) > timedelta(hours=24):
+        flight = get_object_or_404(FlightResult, pk=flight_id)
+        if (now() - flight.created_at) > timedelta(hours=24 * 7) and not request.user.is_superuser:
             return HttpResponseForbidden("Editing window has expired.")
         norm_type = flight.norm_type  # override to match flight being edited
 
@@ -400,15 +400,16 @@ def lesson_progress(request):
     # — select current pilot —
     pilot = None
     allowed_pilots = None
-    if user.is_instructor or user.is_uddannelseschef:
-        student_group = Group.objects.get(name="Student")
+    student_group = Group.objects.get(name="Student")
 
+    if user.is_superuser:
         allowed_pilots = CustomUser.objects.filter(groups=student_group)
 
-        if not user.is_superuser:
-            allowed_pilots = allowed_pilots.filter(allowed_instructors=user)
-
-        allowed_pilots = allowed_pilots.distinct()
+        pid = request.GET.get("pilot_id")
+        if pid:
+            pilot = get_object_or_404(CustomUser, pk=pid, groups=student_group)
+    elif user.is_instructor:
+        allowed_pilots = CustomUser.objects.filter(groups=student_group).filter(allowed_instructors=user).distinct()
 
         pid = request.GET.get("pilot_id")
         if pid:
@@ -504,13 +505,14 @@ def logbook_view(request):
     # — select current pilot —
     pilot = None
     allowed_pilots = None
-    if user.is_instructor or user.is_uddannelseschef:
-        allowed_pilots = CustomUser.objects.all()
+    if user.is_superuser:
+        allowed_pilots = CustomUser.objects.filter(groups__name__in=["Student", "Pilot", "Instructor", "Examiner"]).distinct()
 
-        if not user.is_superuser:
-            allowed_pilots = allowed_pilots.filter(allowed_instructors=user)
-
-        allowed_pilots = allowed_pilots.distinct()
+        pid = request.GET.get("pilot_id")
+        if pid:
+            pilot = get_object_or_404(CustomUser, pk=pid)
+    elif user.is_instructor:
+        allowed_pilots = CustomUser.objects.filter(allowed_instructors=user).distinct()
 
         pid = request.GET.get("pilot_id")
         if pid:
@@ -522,7 +524,9 @@ def logbook_view(request):
     logs = []
 
     if pilot:
-        if user.is_instructor or user.is_uddannelseschef:
+        if user.is_superuser:
+            flights = FlightResult.objects.filter(pilot=pilot)
+        elif user.is_instructor:
             # Instructors see flights where they were instructor for the selected pilot
             flights = FlightResult.objects.filter(
                 instructor=user,
@@ -530,15 +534,12 @@ def logbook_view(request):
             )
         else:
             # Students see flights where they were the pilot (regardless of instructor)
-            flights = FlightResult.objects.filter(
-                pilot=pilot
-            )
+            flights = FlightResult.objects.filter(pilot=pilot)
 
         flights = flights.select_related('instructor', 'aircraft').order_by('-off_blocks')
 
         for flight in flights:
             duration_seconds = (flight.on_blocks - flight.off_blocks).total_seconds()
-            duration_hours = duration_seconds / 3600
 
             is_editable = False
             if user.is_instructor:
@@ -591,7 +592,7 @@ def logbook_view(request):
     context = {
         "flight_logs": logs,
         "allowed_pilots": allowed_pilots,
-        "selected_pilot_id": pilot.pk if pilot and user.is_instructor else None,
+        "selected_pilot_id": pilot.pk if pilot and not (user.is_student or user.is_pilot) else None,
     }
 
     context.update(request.user.get_flight_summary(pilot))
